@@ -2,10 +2,12 @@ package org.zotero.android.screens.allitems
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -13,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import org.zotero.android.appupdate.MaybeShowAppUpdateBanner
 import org.zotero.android.architecture.ui.CustomLayoutSize
+import org.zotero.android.bookshelf.BookshelfGrid
+import org.zotero.android.bookshelf.BookshelfViewModel
 import org.zotero.android.screens.allitems.bottomsheet.AllItemsAddBottomSheet
 import org.zotero.android.screens.allitems.table.AllItemsTable
 import org.zotero.android.uicomponents.CustomScaffoldM3
@@ -53,6 +57,11 @@ internal fun AllItemsScreen(
         val viewState by viewModel.viewStates.observeAsState(AllItemsViewState())
         val viewEffect by viewModel.viewEffects.observeAsState()
         val lazyListState = rememberLazyListState()
+        // Bookshelf: cover grid settings and state
+        val bookshelfViewModel: BookshelfViewModel = hiltViewModel()
+        val showCovers by bookshelfViewModel.showCovers.collectAsState()
+        val coverSize by bookshelfViewModel.coverSize.collectAsState()
+        val lazyGridState = rememberLazyGridState()
 
         val isTablet = layoutType.isTablet()
 
@@ -136,6 +145,10 @@ internal fun AllItemsScreen(
                 }
 
                 is AllItemsViewEffect.MaybeScrollToTop -> {
+                    if (showCovers) {
+                        val gridIndex = lazyGridState.layoutInfo.visibleItemsInfo.firstOrNull()?.index
+                        if ((1..2).contains(gridIndex)) lazyGridState.scrollToItem(index = 0, scrollOffset = 0)
+                    }
                     val maybeIndex =
                         lazyListState.layoutInfo.visibleItemsInfo.firstOrNull()?.index
                     //Indices of the first visible item AFTER an update, so after the potential new item was added to the top.
@@ -186,7 +199,23 @@ internal fun AllItemsScreen(
                     CircularLoading()
                 },
             ) {
-                AllItemsTable(
+                if (showCovers) {
+                    BookshelfGrid(
+                        gridState = lazyGridState,
+                        itemCellModels = viewState.itemCellModels,
+                        coverSize = coverSize,
+                        isEditing = viewState.isEditing,
+                        isRefreshing = viewState.isRefreshing,
+                        isItemSelected = viewState::isSelected,
+                        getItemAccessory = viewState::getAccessoryForItem,
+                        attachmentFor = viewModel::bookshelfAttachment,
+                        coverFor = bookshelfViewModel::coverFor,
+                        onItemTapped = viewModel::onItemTapped,
+                        onItemLongTapped = viewModel::onItemLongTapped,
+                        onInfoTapped = viewModel::onAccessoryTapped,
+                        onStartSync = viewModel::startSync,
+                    )
+                } else AllItemsTable(
                     lazyListState = lazyListState,
                     itemCellModels = viewState.itemCellModels,
                     isEditing = viewState.isEditing,

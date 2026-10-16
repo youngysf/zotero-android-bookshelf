@@ -672,6 +672,11 @@ internal class AllItemsViewModel @Inject constructor(
         }
     }
 
+    /** Bookshelf: the attachment whose first page is this item's cover. */
+    fun bookshelfAttachment(key: String): Attachment? {
+        return allItemsProcessor.getItemAccessoryByKey(key)?.attachmentGet
+    }
+
     fun onAccessoryTapped(key:String) {
         allItemsProcessor.getResultByKey(key)?.let {
             showMetadata(it)

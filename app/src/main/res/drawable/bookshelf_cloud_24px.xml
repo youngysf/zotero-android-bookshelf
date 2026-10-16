@@ -1,0 +1,11 @@
+<!-- Bookshelf icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M6.5,19a4.5,4.5 0,0 1,-0.66 -8.95A6,6 0,0 1,17.6 9.06,5 5,0 0,1 17.5,19zM11,10v4.17l-1.59,-1.58L8,14l4,4 4,-4 -1.41,-1.41L13,14.17V10z"/>
+</vector>

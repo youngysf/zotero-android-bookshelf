@@ -1,5 +1,10 @@
 package org.zotero.android.screens.allitems
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import org.zotero.android.bookshelf.BookshelfViewMenuButton
+import org.zotero.android.bookshelf.BookshelfViewModel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
@@ -72,6 +77,17 @@ internal fun AllItemsRegularBottomPanel(
                 }
 
             }
+
+            // Bookshelf: covers or list, and cover size
+            val bookshelfViewModel: BookshelfViewModel = hiltViewModel()
+            val showCovers by bookshelfViewModel.showCovers.collectAsState()
+            val coverSize by bookshelfViewModel.coverSize.collectAsState()
+            BookshelfViewMenuButton(
+                showCovers = showCovers,
+                coverSize = coverSize,
+                onShowCovers = bookshelfViewModel::setShowCovers,
+                onCoverSize = bookshelfViewModel::setCoverSize,
+            )
 
             TooltipBox(
                 positionProvider = rememberTooltipPositionProvider(
