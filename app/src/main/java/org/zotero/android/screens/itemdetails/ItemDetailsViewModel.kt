@@ -1648,10 +1648,9 @@ class ItemDetailsViewModel @Inject constructor(
                     filename = filename,
                 )
                 when (contentType) {
-                    "application/pdf" -> {
-                        showPdf(file = file, parentKey = parentKey, attachment = attachment)
-                    }
-                    "text/html", "application/epub+zip" -> {
+                    // Bookshelf: PDFs open in Zotero's web reader (the same one the
+                    // library list and the desktop app use) instead of the Nutrient one.
+                    "application/pdf", "text/html", "application/epub+zip" -> {
                         Timber.i("ItemDetailsViewModel: show HTML / EPUB ${attachment.key}")
                         showReader(
                             file = file,
