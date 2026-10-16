@@ -160,6 +160,9 @@ android {
 }
 
 play {
+    // Bookshelf: the Play publisher only works with Zotero's Play account; skip it
+    // (including its version-code lookup) when no credentials are configured.
+    enabled.set(System.getenv("ANDROID_PUBLISHER_CREDENTIALS")?.isNotBlank() == true)
     track.set("internal")
     defaultToAppBundles.set(true)
     resolutionStrategy.set(ResolutionStrategy.AUTO)
