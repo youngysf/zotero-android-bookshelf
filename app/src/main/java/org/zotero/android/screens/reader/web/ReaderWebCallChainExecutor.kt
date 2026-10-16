@@ -508,9 +508,11 @@ class ReaderWebCallChainExecutor @Inject constructor(
         createReaderViewOptions.colorScheme = appearanceString
 
         val toJson = encodeAsJSONForJavascript(this.gson, createReaderViewOptions)
-        // Bookshelf: page colour is applied in the same script, before the first frame.
+        // Bookshelf: page colour is applied in the same script, before the first frame,
+        // and the text-selection fix is installed.
         val javascript = "javascript:createView('${toJson}');" +
-            bookshelfPreferences.pageTheme.value.applyScript()
+            bookshelfPreferences.pageTheme.value.applyScript() +
+            org.zotero.android.bookshelf.BookshelfReaderFixes.script
         return suspendCancellableCoroutine { cont ->
             readerWebViewHandler.evaluateJavascript(javascript) {
                 cont.resume(Unit)
