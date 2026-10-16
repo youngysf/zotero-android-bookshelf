@@ -3,105 +3,86 @@ package org.zotero.android.bookshelf
 /**
  * Small fixes injected into Zotero's web reader.
  *
- * Text selection: on Android the reader uses Chrome's native selection over
- * PDF.js's invisible text layer. When a selection handle is dragged over blank
- * space (e.g. past the end of a paragraph) there is no text under it, so Chrome
- * resolves the position by DOM order instead of by position, which in a PDF
- * text layer is often the start or end of the page: the selection suddenly
- * covers the whole page. PDF.js normally prevents this with its "endOfContent"
- * sentinel, but the reader turns that off for native handles.
+ * Text selection in PDFs: on Android the reader uses Chrome's native selection
+ * handles over PDF.js's invisible text layer. The text layer is a pile of
+ * absolutely positioned spans, so when a handle is over blank space (past the
+ * end of a paragraph, between lines) Chrome picks a position by DOM order
+ * rather than by distance, and the selection jumps elsewhere on the page.
  *
- * The fix keeps each handle where it was until it is over text again: if an
- * endpoint lands on a non-text node inside a text layer, or jumps much further
- * than a finger can move between two selection updates, the previous selection
- * is restored. Starting a new selection elsewhere (both ends change) is left
- * alone. Runs inside each PDF page frame; does nothing for EPUB or HTML.
+ * PDF.js guards against this with an invisible "endOfContent" sheet that,
+ * while selecting, covers the page and sits in the DOM right next to the end
+ * being moved, so blank space resolves to that end. Zotero's Android mode turns
+ * the sheet's hit-testing off (pointer-events: none), and PDF.js guesses which
+ * end is moving from the previous selection, which is wrong right after a
+ * selection is made and when the other handle is grabbed.
+ *
+ * The fix turns the sheet back on and places it deterministically: on Android
+ * the handle being dragged is always the selection's focus, so after every
+ * selection change the sheet goes immediately after the focus's span (or before
+ * it, when the focus is the start of the selection). After a finger lifts,
+ * PDF.js resets the sheet; it is placed again right away.
+ *
+ * Verified against the reader bundle in phone-sized Chromium: handles dragged
+ * into blank space stay at the nearest end of the line instead of jumping.
  */
 object BookshelfReaderFixes {
-
-    /** Fraction of the page height an endpoint may move in one update before it counts as a jump. */
-    private const val MAX_JUMP = 0.22
 
     val script: String = """
 (function () {
   if (window.__bookshelfFixes) return;
   window.__bookshelfFixes = true;
 
+  var CSS = ':root[data-native-text-selection] .textLayer.selecting .endOfContent' +
+    '{pointer-events:auto !important;user-select:text !important;-webkit-user-select:text !important;}';
+
   function install(win) {
-    if (!win || win.__bookshelfSelectionFix || !win.document) return;
+    if (!win || win.__bookshelfSelectionFix || !win.document || !win.document.head) return;
     win.__bookshelfSelectionFix = true;
     var doc = win.document;
-    var TEXT = 3;
-    var last = null;
-    var restoring = false;
+    var style = doc.createElement('style');
+    style.textContent = CSS;
+    doc.head.appendChild(style);
 
     function layerOf(node) {
       if (!node) return null;
-      var el = node.nodeType === TEXT ? node.parentElement : node;
+      var el = node.nodeType === 3 ? node.parentElement : node;
       return el && el.closest ? el.closest('.textLayer') : null;
     }
-    function caretRect(node, offset) {
-      if (!node || node.nodeType !== TEXT) return null;
-      try {
-        var r = doc.createRange();
-        r.setStart(node, Math.min(offset, node.nodeValue.length));
-        r.collapse(true);
-        var rect = r.getBoundingClientRect();
-        if (!rect || (!rect.height && !rect.width && !rect.top && !rect.left)) {
-          rect = node.parentElement.getBoundingClientRect();
-        }
-        return rect;
-      } catch (e) { return null; }
-    }
-    function jumped(prevNode, prevOffset, node, offset) {
-      if (node === prevNode && offset === prevOffset) return false;
-      var layer = layerOf(node);
-      if (!layer) return false;
-      if (node.nodeType !== TEXT) return true;
-      if (layer !== layerOf(prevNode)) return false;
-      var a = caretRect(prevNode, prevOffset);
-      var b = caretRect(node, offset);
-      if (!a || !b) return false;
-      var pageHeight = layer.getBoundingClientRect().height || 1;
-      var dy = Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2);
-      return dy > pageHeight * $MAX_JUMP;
-    }
-    function remember(sel) {
-      last = {
-        anchorNode: sel.anchorNode, anchorOffset: sel.anchorOffset,
-        focusNode: sel.focusNode, focusOffset: sel.focusOffset
-      };
-    }
 
-    doc.addEventListener('selectionchange', function () {
-      if (restoring) { restoring = false; return; }
+    function place() {
       var sel = win.getSelection();
-      if (!sel || !sel.rangeCount || sel.isCollapsed) { return; }
-      if (!layerOf(sel.anchorNode) && !layerOf(sel.focusNode)) { last = null; return; }
+      if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+      var focus = sel.focusNode;
+      var layer = layerOf(focus);
+      if (!layer) return;
+      // Only move the sheet when the focus is real text; if it is already on
+      // the sheet (blank space), leave it where it is.
+      if (focus.nodeType !== 3) return;
+      var span = focus.parentElement;
+      if (!span || span.classList.contains('endOfContent') || span === layer) return;
+      var sheet = layer.querySelector('.endOfContent');
+      if (!sheet) return;
+      var range = sel.getRangeAt(0);
+      var focusIsStart = range.startContainer === sel.focusNode && range.startOffset === sel.focusOffset;
+      layer.classList.add('selecting');
+      sheet.style.width = layer.style.width;
+      sheet.style.height = layer.style.height;
+      sheet.style.userSelect = 'text';
+      var alreadyPlaced = focusIsStart ? sheet.nextSibling === span : span.nextSibling === sheet;
+      if (!alreadyPlaced) {
+        span.parentElement.insertBefore(sheet, focusIsStart ? span : span.nextSibling);
+      }
+    }
 
-      if (!last || !last.anchorNode.isConnected || !last.focusNode.isConnected) {
-        if (sel.anchorNode.nodeType === TEXT && sel.focusNode.nodeType === TEXT) remember(sel);
-        return;
-      }
-      var anchorChanged = sel.anchorNode !== last.anchorNode || sel.anchorOffset !== last.anchorOffset;
-      var focusChanged = sel.focusNode !== last.focusNode || sel.focusOffset !== last.focusOffset;
-      // Both ends moved at once: a new selection, not a handle drag.
-      if (anchorChanged && focusChanged
-          && sel.anchorNode.nodeType === TEXT && sel.focusNode.nodeType === TEXT) {
-        remember(sel);
-        return;
-      }
-      var bad = (anchorChanged && jumped(last.anchorNode, last.anchorOffset, sel.anchorNode, sel.anchorOffset))
-        || (focusChanged && jumped(last.focusNode, last.focusOffset, sel.focusNode, sel.focusOffset));
-      if (bad) {
-        try {
-          restoring = true;
-          sel.setBaseAndExtent(last.anchorNode, last.anchorOffset, last.focusNode, last.focusOffset);
-        } catch (e) { restoring = false; }
-        return;
-      }
-      if (sel.anchorNode.nodeType === TEXT && sel.focusNode.nodeType === TEXT) remember(sel);
-    }, true);
+    // Runs after PDF.js's own selectionchange handler (registered earlier) and overrides its placement.
+    doc.addEventListener('selectionchange', place);
+    function placeSoon() {
+      win.setTimeout(function () { doc.dispatchEvent(new win.Event('selectionchange')); }, 0);
+      win.setTimeout(function () { doc.dispatchEvent(new win.Event('selectionchange')); }, 150);
+    }
+    doc.addEventListener('pointerup', placeSoon, true);
+    doc.addEventListener('pointercancel', placeSoon, true);
+    doc.addEventListener('touchend', placeSoon, true);
   }
 
   function scan() {
