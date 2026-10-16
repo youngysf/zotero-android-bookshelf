@@ -82,3 +82,5 @@ app/src/main/assets/reader/
 
 #document-worker generated files:
 app/src/main/assets/document-worker/
+# Bookshelf: CI writes the signing key here; it must never be committed
+bookshelf.keystore

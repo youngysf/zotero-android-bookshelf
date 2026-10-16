@@ -34,8 +34,12 @@ android {
         applicationId = BuildConfig.appId
         minSdk = BuildConfig.minSdkVersion
         targetSdk = BuildConfig.targetSdk
-        versionCode = BuildConfig.versionCode
-        versionName = BuildConfig.version.name
+        // Bookshelf: CI passes an always-increasing build number so each new
+        // APK installs over the previous one.
+        versionCode = (project.findProperty("bookshelfVersionCode") as String?)?.toInt()
+            ?: BuildConfig.versionCode
+        versionName = (project.findProperty("bookshelfVersionName") as String?)
+            ?: BuildConfig.version.name
         testInstrumentationRunner = Libs.androidJUnitRunner
 
         buildConfigField("String", "BASE_API_URL", "\"https://api.zotero.org\"")
@@ -49,10 +53,19 @@ android {
         buildConfigField("int", "BUILD_VERSION_PATCH", "${BuildConfig.version.patch}")
 
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            // Bookshelf: phones only (keeps the APK smaller).
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
     }
     signingConfigs {
+        // Bookshelf: personal signing key, written by CI from a repository secret.
+        // The password is not secret on its own; the key file is.
+        create("bookshelf") {
+            storeFile = rootProject.file("bookshelf.keystore")
+            storePassword = "bookshelf-sideload"
+            keyAlias = "bookshelf"
+            keyPassword = "bookshelf-sideload"
+        }
         create("release") {
             storeFile = rootProject.file("zotero.release.keystore")
 
@@ -98,10 +111,15 @@ android {
         getByName("release") {
             isDebuggable = false
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getAt("release")
+            signingConfig = if (rootProject.file("bookshelf.keystore").exists()) {
+                signingConfigs.getAt("bookshelf")
+            } else {
+                signingConfigs.getAt("release")
+            }
 
-            buildConfigField("boolean", "EVENT_AND_CRASH_LOGGING_ENABLED", "true")
-            manifestPlaceholders["enableCrashReporting"] = true
+            // Bookshelf: no crash reporting to Zotero's servers from this build.
+            buildConfigField("boolean", "EVENT_AND_CRASH_LOGGING_ENABLED", "false")
+            manifestPlaceholders["enableCrashReporting"] = false
         }
     }
     setDefaultProductFlavors()
@@ -112,7 +130,7 @@ android {
             applicationIdSuffix = ".debug"
         }
         internal {
-            resValue("string", "app_name", """"Zotero""")
+            resValue("string", "app_name", """"Bookshelf""")
             buildConfigField("String", "PSPDFKIT_KEY", readPspdfkitKey())
         }
     }

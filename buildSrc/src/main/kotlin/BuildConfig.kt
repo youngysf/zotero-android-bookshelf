@@ -1,5 +1,6 @@
 object BuildConfig {
-    const val appId = "org.zotero.android"
+    // Bookshelf: own app ID so it installs alongside the official Zotero app.
+    const val appId = "org.zotero.android.bookshelf"
     const val minSdkVersion = 23
     const val compileSdkVersion = 37
     const val targetSdk = 36

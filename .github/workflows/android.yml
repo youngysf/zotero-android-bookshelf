@@ -11,7 +11,8 @@ env:
 
 jobs:
   build:
-
+    # Bookshelf fork: this is Zotero's Play Store deploy; only run it upstream.
+    if: github.repository == 'zotero/zotero-android'
     runs-on: ubuntu-latest
 
     steps:

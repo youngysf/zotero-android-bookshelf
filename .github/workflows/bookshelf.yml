@@ -1,0 +1,96 @@
+name: Bookshelf APK
+
+# Builds the personal Bookshelf APK on every push to the `bookshelf` branch
+# and publishes it as a GitHub Release (Releases don't use Actions storage).
+
+on:
+  push:
+    branches: [bookshelf]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bookshelf-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+          cache: gradle
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
+      - name: Write signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.BOOKSHELF_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error title=Missing signing key::Add the BOOKSHELF_KEYSTORE secret under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | tr -d ' \r\n' | base64 -d > bookshelf.keystore
+
+      - name: Placeholder Firebase config
+        run: python3 scripts/bookshelf/placeholder_google_services.py
+
+      - name: Bundle web components
+        run: |
+          set -eo pipefail
+          chmod +x scripts/*.py scripts/*.sh gradlew
+          {
+            python3 scripts/bundle_translators.py
+            python3 scripts/bundle_translation.py
+            python3 scripts/bundle_pdf-worker.py
+            python3 scripts/bundle_citation_proc.py
+            python3 scripts/bundle_csl_locales.py
+            python3 scripts/bundle_styles.py
+            scripts/bundle_utilities.sh
+            scripts/bundle_reader.sh
+            scripts/bundle_document-worker.sh
+          } 2>&1 | tee bundle.log
+
+      - name: Build APK
+        run: |
+          set -eo pipefail
+          ./gradlew --no-configuration-cache -PpreDexLibs=false \
+            -PbookshelfVersionCode=$((10000 + GITHUB_RUN_NUMBER)) \
+            -PbookshelfVersionName="bookshelf-${GITHUB_RUN_NUMBER}" \
+            assembleInternalRelease --stacktrace 2>&1 | tee build.log
+
+      - name: Report errors
+        if: failure()
+        run: python3 scripts/bookshelf/report_errors.py bundle.log build.log
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eo pipefail
+          APK="Bookshelf-build-${GITHUB_RUN_NUMBER}.apk"
+          cp app/build/outputs/apk/internal/release/app-internal-release.apk "$APK"
+          ls -lh "$APK"
+          NOTES=$(printf 'Build %s from commit %s\n\n%s\n\nInstall: open this page on your phone, tap the APK below, and allow installing from your browser if asked.' \
+            "$GITHUB_RUN_NUMBER" "${GITHUB_SHA::7}" "$(git log -1 --format=%B)")
+          gh release create "build-${GITHUB_RUN_NUMBER}" "$APK" \
+            --target "$GITHUB_SHA" --title "Bookshelf build ${GITHUB_RUN_NUMBER}" --notes "$NOTES" --latest
+          # Keep the 8 newest builds; delete older releases and their tags.
+          gh release list --limit 200 --json tagName --jq '.[].tagName' \
+            | grep '^build-' | sort -t- -k2 -n -r | tail -n +9 \
+            | while read -r tag; do gh release delete "$tag" --yes --cleanup-tag || true; done
