@@ -3,6 +3,8 @@ package org.zotero.android.screens.reader.settings
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import org.zotero.android.screens.reader.data.ReaderFileType
 import org.zotero.android.uicomponents.Strings
@@ -18,12 +20,24 @@ internal fun ReaderSettingsTable(
         modifier = Modifier
             .fillMaxSize()
     ) {
+        // Bookshelf: this row only sets the interface's look now; pages have their own colour.
         readerSettingsSettingRow(
-            titleResId = Strings.pdf_settings_appearance_title,
+            titleResId = Strings.bookshelf_reader_interface_title,
             options = viewState.appearanceOptions,
             selectedOption = viewState.selectedAppearanceOption,
             optionSelected = viewModel::onOptionSelected
         )
+        if (viewState.fileType == ReaderFileType.PDF || viewState.fileType == ReaderFileType.EPUB
+            || viewState.fileType == ReaderFileType.HTML
+        ) {
+            item {
+                val pageTheme by viewModel.bookshelfPageTheme.collectAsState()
+                org.zotero.android.bookshelf.BookshelfPageThemeRow(
+                    selected = pageTheme,
+                    onSelected = viewModel::onBookshelfPageThemeSelected,
+                )
+            }
+        }
         if (viewState.fileType == ReaderFileType.PDF && !viewState.readingModeEnabled) {
             readerSettingsSettingRow(
                 titleResId = Strings.pdf_settings_scroll_mode_title,

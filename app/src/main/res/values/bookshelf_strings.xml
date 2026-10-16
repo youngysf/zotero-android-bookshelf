@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bookshelf: reader settings -->
+    <string name="bookshelf_reader_interface_title">Interface</string>
+    <string name="bookshelf_reader_page_colour_title">Page colour</string>
+</resources>

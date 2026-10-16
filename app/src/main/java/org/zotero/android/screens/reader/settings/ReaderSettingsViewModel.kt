@@ -35,6 +35,7 @@ internal class ReaderSettingsViewModel @Inject constructor(
     private val pdfReaderCurrentThemeEventStream: PdfReaderCurrentThemeEventStream,
     private val pdfReaderThemeDecider: PdfReaderThemeDecider,
     private val navigationParamsMarshaller: NavigationParamsMarshaller,
+    private val bookshelfPreferences: org.zotero.android.bookshelf.BookshelfPreferences,
     stateHandle: SavedStateHandle,
 ) : BaseViewModel2<ReaderSettingsViewState, ReaderSettingsViewEffect>(ReaderSettingsViewState()) {
 
@@ -164,6 +165,14 @@ internal class ReaderSettingsViewModel @Inject constructor(
             }
         }
         updatePdfSettings(option)
+        scheduleDebouncedApply()
+    }
+
+    /** Bookshelf: page colour, chosen separately from the interface's light/dark look. */
+    val bookshelfPageTheme get() = bookshelfPreferences.pageTheme
+
+    fun onBookshelfPageThemeSelected(theme: org.zotero.android.bookshelf.PageTheme) {
+        bookshelfPreferences.setPageTheme(theme)
         scheduleDebouncedApply()
     }
 

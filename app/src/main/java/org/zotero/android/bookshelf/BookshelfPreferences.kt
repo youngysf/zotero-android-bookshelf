@@ -22,6 +22,18 @@ class BookshelfPreferences @Inject constructor(context: Context) {
     )
     val coverSize: StateFlow<CoverSize> = _coverSize.asStateFlow()
 
+    private val _pageTheme = MutableStateFlow(
+        PageTheme.entries.firstOrNull { it.name == prefs.getString(KEY_PAGE_THEME, null) }
+            ?: PageTheme.Original
+    )
+    /** Reader page colour, independent of the app's light/dark interface. */
+    val pageTheme: StateFlow<PageTheme> = _pageTheme.asStateFlow()
+
+    fun setPageTheme(theme: PageTheme) {
+        prefs.edit().putString(KEY_PAGE_THEME, theme.name).apply()
+        _pageTheme.value = theme
+    }
+
     fun setShowCovers(show: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_COVERS, show).apply()
         _showCovers.value = show
@@ -35,6 +47,7 @@ class BookshelfPreferences @Inject constructor(context: Context) {
     private companion object {
         const val KEY_SHOW_COVERS = "showCovers"
         const val KEY_COVER_SIZE = "coverSize"
+        const val KEY_PAGE_THEME = "pageTheme"
     }
 }
 

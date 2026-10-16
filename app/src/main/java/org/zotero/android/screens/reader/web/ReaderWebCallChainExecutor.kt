@@ -36,6 +36,7 @@ class ReaderWebCallChainExecutor @Inject constructor(
     private val observable: ReaderWebCallChainEventStream,
     private val readerWebViewHandler: ReaderWebViewHandler,
     private val defaults: Defaults,
+    private val bookshelfPreferences: org.zotero.android.bookshelf.BookshelfPreferences,
 ) {
 
     private val limitedParallelismDispatcher =
@@ -507,13 +508,24 @@ class ReaderWebCallChainExecutor @Inject constructor(
         createReaderViewOptions.colorScheme = appearanceString
 
         val toJson = encodeAsJSONForJavascript(this.gson, createReaderViewOptions)
-        val javascript = "javascript:createView('${toJson}');"
+        // Bookshelf: page colour is applied in the same script, before the first frame.
+        val javascript = "javascript:createView('${toJson}');" +
+            bookshelfPreferences.pageTheme.value.applyScript()
         return suspendCancellableCoroutine { cont ->
             readerWebViewHandler.evaluateJavascript(javascript) {
                 cont.resume(Unit)
             }
         }
 
+    }
+
+    /** Bookshelf: apply the chosen page colour without touching the interface colours. */
+    suspend fun applyBookshelfPageTheme() {
+        return suspendCancellableCoroutine { cont ->
+            readerWebViewHandler.evaluateJavascript(bookshelfPreferences.pageTheme.value.applyScript()) {
+                cont.resume(Unit)
+            }
+        }
     }
 
     suspend fun updateInterface(isDark: Boolean) {

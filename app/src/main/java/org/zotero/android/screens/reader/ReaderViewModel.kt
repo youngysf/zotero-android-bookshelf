@@ -1680,6 +1680,7 @@ class ReaderViewModel @Inject constructor(
                     copy(isReaderLoading = false)
                 }
                 readerWebCallChainExecutor.updateInterface(pdfReaderCurrentThemeEventStream.currentValue()!!.isDark)
+                readerWebCallChainExecutor.applyBookshelfPageTheme() // Bookshelf
             }
 
             is ReaderWebData.setReadingModeEnabled -> {

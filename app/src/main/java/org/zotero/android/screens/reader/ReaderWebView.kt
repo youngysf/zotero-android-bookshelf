@@ -14,7 +14,10 @@ fun ReaderWebView(viewModel: ReaderViewModel) {
     val textFont = MaterialTheme.typography.bodyMedium
     AndroidView(
         factory = { context ->
-            val webView = ReaderCustomWebView(context)
+            // Bookshelf: own accent colour so the text-selection handles stay visible.
+            val webView = ReaderCustomWebView(
+                android.view.ContextThemeWrapper(context, org.zotero.android.R.style.ThemeOverlay_Bookshelf_Reader)
+            )
             webView.layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
