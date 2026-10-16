@@ -512,7 +512,10 @@ class ReaderWebCallChainExecutor @Inject constructor(
         // and the text-selection fix is installed.
         val javascript = "javascript:createView('${toJson}');" +
             bookshelfPreferences.pageTheme.value.applyScript() +
-            org.zotero.android.bookshelf.BookshelfReaderFixes.script
+            org.zotero.android.bookshelf.BookshelfReaderFixes.script +
+            (if (bookshelfPreferences.selectionDiagnostics.value) {
+                org.zotero.android.bookshelf.BookshelfSelectionDiagnostics.script
+            } else "")
         return suspendCancellableCoroutine { cont ->
             readerWebViewHandler.evaluateJavascript(javascript) {
                 cont.resume(Unit)
@@ -524,7 +527,10 @@ class ReaderWebCallChainExecutor @Inject constructor(
     /** Bookshelf: apply the chosen page colour without touching the interface colours. */
     suspend fun applyBookshelfPageTheme() {
         return suspendCancellableCoroutine { cont ->
-            readerWebViewHandler.evaluateJavascript(bookshelfPreferences.pageTheme.value.applyScript()) {
+            val diagnostics = if (bookshelfPreferences.selectionDiagnostics.value) {
+                org.zotero.android.bookshelf.BookshelfSelectionDiagnostics.script
+            } else ""
+            readerWebViewHandler.evaluateJavascript(bookshelfPreferences.pageTheme.value.applyScript() + diagnostics) {
                 cont.resume(Unit)
             }
         }

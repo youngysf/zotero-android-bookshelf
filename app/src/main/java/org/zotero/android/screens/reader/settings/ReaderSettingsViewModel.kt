@@ -171,6 +171,13 @@ internal class ReaderSettingsViewModel @Inject constructor(
     /** Bookshelf: page colour, chosen separately from the interface's light/dark look. */
     val bookshelfPageTheme get() = bookshelfPreferences.pageTheme
 
+    val bookshelfSelectionDiagnostics get() = bookshelfPreferences.selectionDiagnostics
+
+    fun onBookshelfSelectionDiagnosticsChanged(on: Boolean) {
+        bookshelfPreferences.setSelectionDiagnostics(on)
+        scheduleDebouncedApply()
+    }
+
     fun onBookshelfPageThemeSelected(theme: org.zotero.android.bookshelf.PageTheme) {
         bookshelfPreferences.setPageTheme(theme)
         scheduleDebouncedApply()
