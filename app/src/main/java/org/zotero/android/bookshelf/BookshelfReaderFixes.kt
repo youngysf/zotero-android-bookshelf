@@ -16,6 +16,12 @@ package org.zotero.android.bookshelf
  * end is moving from the previous selection, which is wrong right after a
  * selection is made and when the other handle is grabbed.
  *
+ * Also, whenever the moving end lands on a non-text position (the sheet, or one
+ * of PDF.js's <br> line breaks), Chrome draws the handle at the page's top-left
+ * corner and Android continues the drag from there, so the selection flips and
+ * the handles swap. The moving end is snapped to the equivalent text position
+ * (end of the previous word, or start of the next when it is the start).
+ *
  * The fix turns the sheet back on and places it deterministically: on Android
  * the handle being dragged is always the selection's focus, so after every
  * selection change the sheet goes immediately after the focus's span (or before
@@ -49,12 +55,54 @@ object BookshelfReaderFixes {
       return el && el.closest ? el.closest('.textLayer') : null;
     }
 
+    // The nearest text position before (or after) a non-text position in the
+    // text layer, skipping the sheet. Chrome draws a handle at the page's
+    // top-left corner for non-text positions, and Android then continues the
+    // drag from there, flipping the selection.
+    function textPositionNear(node, offset, layer, forward) {
+      var walker = doc.createTreeWalker(layer, win.NodeFilter.SHOW_TEXT, {
+        acceptNode: function (n) {
+          var p = n.parentElement;
+          return p && !p.classList.contains('endOfContent') && n.nodeValue.length
+            ? win.NodeFilter.FILTER_ACCEPT : win.NodeFilter.FILTER_SKIP;
+        }
+      });
+      var probe = doc.createRange();
+      try { probe.setStart(node, offset); } catch (e) { return null; }
+      var before = null, after = null, n;
+      while ((n = walker.nextNode())) {
+        var r = doc.createRange();
+        r.selectNodeContents(n);
+        if (r.compareBoundaryPoints(win.Range.START_TO_START, probe) < 0) before = n;
+        else { after = n; break; }
+      }
+      if (forward) return before ? [before, before.nodeValue.length] : (after ? [after, 0] : null);
+      return after ? [after, 0] : (before ? [before, before.nodeValue.length] : null);
+    }
+
+    function normalizeFocus(sel, layer) {
+      var focus = sel.focusNode;
+      if (focus.nodeType === 3 && !(focus.parentElement && focus.parentElement.classList.contains('endOfContent'))) {
+        return false;
+      }
+      var range = sel.getRangeAt(0);
+      var focusIsStart = range.startContainer === sel.focusNode && range.startOffset === sel.focusOffset;
+      var target = textPositionNear(focus, sel.focusOffset, layer, !focusIsStart);
+      if (!target) return false;
+      try {
+        // extend() moves only the focus; the fixed end (anchor) is untouched.
+        sel.extend(target[0], target[1]);
+        return true;
+      } catch (e) { return false; }
+    }
+
     function place() {
       var sel = win.getSelection();
       if (!sel || !sel.rangeCount || sel.isCollapsed) return;
-      var focus = sel.focusNode;
-      var layer = layerOf(focus);
+      var layer = layerOf(sel.focusNode);
       if (!layer) return;
+      if (normalizeFocus(sel, layer)) return; // a new selectionchange follows
+      var focus = sel.focusNode;
       // Only move the sheet when the focus is real text; if it is already on
       // the sheet (blank space), leave it where it is.
       if (focus.nodeType !== 3) return;
