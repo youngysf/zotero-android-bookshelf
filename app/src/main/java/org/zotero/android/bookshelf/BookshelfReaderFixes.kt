@@ -19,8 +19,9 @@ package org.zotero.android.bookshelf
  * Also, whenever the moving end lands on a non-text position (the sheet, or one
  * of PDF.js's <br> line breaks), Chrome draws the handle at the page's top-left
  * corner and Android continues the drag from there, so the selection flips and
- * the handles swap. The moving end is snapped to the equivalent text position
- * (end of the previous word, or start of the next when it is the start).
+ * the handles swap. The moving end is put back on the last word it was on: at
+ * that word's edge over blank space, at the exact spot on a line break (or, at
+ * the very start of a drag, the nearest text position).
  *
  * The fix turns the sheet back on and places it deterministically: on Android
  * the handle being dragged is always the selection's focus, so after every
@@ -80,14 +81,44 @@ object BookshelfReaderFixes {
       return after ? [after, 0] : (before ? [before, before.nodeValue.length] : null);
     }
 
+    // The last place the moving end was on real text, for the current selection.
+    var lastText = null;
+
     function normalizeFocus(sel, layer) {
       var focus = sel.focusNode;
-      if (focus.nodeType === 3 && !(focus.parentElement && focus.parentElement.classList.contains('endOfContent'))) {
+      var isText = focus.nodeType === 3 && layerOf(focus) === layer
+        && !(focus.parentElement && focus.parentElement.classList.contains('endOfContent'));
+      var sameSelection = lastText && lastText.anchorNode === sel.anchorNode
+        && lastText.anchorOffset === sel.anchorOffset;
+      if (isText) {
+        lastText = {
+          anchorNode: sel.anchorNode, anchorOffset: sel.anchorOffset,
+          node: focus, offset: sel.focusOffset
+        };
         return false;
       }
       var range = sel.getRangeAt(0);
       var focusIsStart = range.startContainer === sel.focusNode && range.startOffset === sel.focusOffset;
-      var target = textPositionNear(focus, sel.focusOffset, layer, !focusIsStart);
+      // Blank space: the guard sheet, the layer itself, or outside the text layer
+      // (page margins). Anything else (a <br> line break) is not blank.
+      var el = focus.nodeType === 3 ? focus.parentElement : focus;
+      var child = focus.nodeType === 1 ? focus.childNodes[sel.focusOffset] : null;
+      var blank = !layerOf(focus) || (el && el.classList && el.classList.contains('endOfContent'))
+        || (child && child.classList && child.classList.contains('endOfContent'))
+        || (focus === layer && !(child && child.tagName === 'BR'));
+      var target = null;
+      if (sameSelection && lastText.node.isConnected && layerOf(lastText.node) === layer) {
+        var n = lastText.node;
+        // Over blank space the end goes to the edge of the last word it was on
+        // (so dragging past a paragraph selects all of its last word); on a line
+        // break it stays exactly where it was. Which line break Chrome picks is
+        // arbitrary, so "nearest in the DOM" can be lines away on scanned books.
+        var offset = blank ? (focusIsStart ? 0 : n.nodeValue.length) : Math.min(lastText.offset, n.nodeValue.length);
+        target = [n, offset];
+      }
+      else if (layerOf(focus) === layer) {
+        target = textPositionNear(focus, sel.focusOffset, layer, !focusIsStart);
+      }
       if (!target) return false;
       try {
         // extend() moves only the focus; the fixed end (anchor) is untouched.
@@ -99,9 +130,10 @@ object BookshelfReaderFixes {
     function place() {
       var sel = win.getSelection();
       if (!sel || !sel.rangeCount || sel.isCollapsed) return;
-      var layer = layerOf(sel.focusNode);
+      var layer = layerOf(sel.focusNode) || layerOf(sel.anchorNode);
       if (!layer) return;
       if (normalizeFocus(sel, layer)) return; // a new selectionchange follows
+      if (layerOf(sel.focusNode) !== layer) return;
       var focus = sel.focusNode;
       // Only move the sheet when the focus is real text; if it is already on
       // the sheet (blank space), leave it where it is.
