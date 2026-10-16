@@ -17,7 +17,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned so GitHub's switch of ubuntu-latest to Ubuntu 26 can't break builds.
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
 
     steps:
