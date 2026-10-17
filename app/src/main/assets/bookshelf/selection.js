@@ -378,6 +378,14 @@
     var fr = iframe.getBoundingClientRect();
     var pos = offsetAt(drag.x - drag.dx - fr.left, drag.y - drag.dy - fr.top);
     if (!pos) return;
+    var w = drag.word;
+    if (w) {
+      // Extending a long-pressed word: the word always stays selected.
+      if (cmp(pos, w.s) < 0) setSelection(w.e, pos);
+      else if (cmp(pos, w.e) > 0) setSelection(w.s, pos);
+      else setSelection(w.s, w.e);
+      return;
+    }
     if (same(pos, drag.fixed)) return; // never collapse to nothing
     setSelection(drag.fixed, pos);
   }
@@ -387,7 +395,7 @@
     var speed = 0;
     if (drag.y < fr.top + EDGE_SCROLL_ZONE) speed = -(fr.top + EDGE_SCROLL_ZONE - drag.y);
     else if (drag.y > fr.bottom - EDGE_SCROLL_ZONE) speed = drag.y - (fr.bottom - EDGE_SCROLL_ZONE);
-    speed = Math.max(-EDGE_SCROLL_ZONE, Math.min(EDGE_SCROLL_ZONE, speed)) / 3;
+    speed = Math.max(-EDGE_SCROLL_ZONE, Math.min(EDGE_SCROLL_ZONE, speed)) / 4.5;
     drag.speed = speed;
     if (!speed || drag.scroll) return;
     var tick = function () {
@@ -447,6 +455,10 @@
   function cancelPress() {
     if (press && press.timer) clearTimeout(press.timer);
     press = null;
+    if (drag && drag.touch) {
+      if (drag.scroll) cancelAnimationFrame(drag.scroll);
+      drag = null;
+    }
   }
 
   function longPress() {
@@ -472,6 +484,8 @@
     sel = null;
     menuHiddenUntil = 0;
     setSelection(w.s, w.e);
+    var fr = iframe.getBoundingClientRect();
+    drag = { touch: true, word: w, dx: 0, dy: 0, x: press.x + fr.left, y: press.y + fr.top, scroll: 0 };
   }
 
   function onTouchMove(ev) {
@@ -487,14 +501,14 @@
       }
       return;
     }
-    // Finger still down after a long-press: extend the selection by the word.
+    // Finger still down after a long-press: extend the selection from the word.
     if (ev.cancelable) ev.preventDefault();
-    var pos = offsetAt(t.clientX, t.clientY);
-    if (!pos) return;
-    var w = press.word;
-    if (cmp(pos, w.s) < 0) setSelection(w.e, pos);
-    else if (cmp(pos, w.e) > 0) setSelection(w.s, pos);
-    else setSelection(w.s, w.e);
+    if (!drag || !drag.touch) return;
+    var fr = iframe.getBoundingClientRect();
+    drag.x = t.clientX + fr.left;
+    drag.y = t.clientY + fr.top;
+    followFinger();
+    edgeScroll();
   }
 
   function onTouchEnd(ev) {
@@ -504,6 +518,10 @@
     press = null;
     if (p.fired) {
       if (ev.cancelable) ev.preventDefault();
+      if (drag && drag.touch) {
+        if (drag.scroll) cancelAnimationFrame(drag.scroll);
+        drag = null;
+      }
       return;
     }
     // A tap clears the selection.
