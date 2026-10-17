@@ -152,6 +152,9 @@ class ReaderViewModel @Inject constructor(
     private val lastReadWatcher: LastReadWatcher,
     private val progressHandler: SyncProgressHandler,
     private val documentWorkerController: DocumentWorkerController,
+    private val bookshelfShelves: org.zotero.android.bookshelf.BookshelfShelves,
+    private val bookshelfProgress: org.zotero.android.bookshelf.BookshelfProgress,
+    private val bookshelfPreferences: org.zotero.android.bookshelf.BookshelfPreferences,
 
     stateHandle: SavedStateHandle,
 ) : BaseViewModel2<ReaderViewState, ReaderViewEffect>(ReaderViewState())  {
@@ -1761,6 +1764,7 @@ class ReaderViewModel @Inject constructor(
         val pagesCount = stats?.intOrNull("pagesCount")
         val pageLabel = stats?.stringOrNull("pageLabel")
         val usePhysicalPageNumbers = stats?.boolOrNull("usePhysicalPageNumbers") ?: false
+        bookshelfOnStats(pageIndex, pagesCount)
         val canNavigateBack = stats?.boolOrNull("canNavigateBack") ?: false
         val canNavigateForward = stats?.boolOrNull("canNavigateForward") ?: false
 
@@ -1783,6 +1787,37 @@ class ReaderViewModel @Inject constructor(
 
         if (viewState.pageProgress != pageProgress) {
             updateState { copy(pageProgress = pageProgress) }
+        }
+    }
+
+    // Bookshelf: page counts for progress bars, and automatic shelves
+    // (opening a book puts it on Reading, reaching its last page on Finished).
+    private var bookshelfOpenHandled = false
+    private var bookshelfFinishHandled = false
+
+    private fun bookshelfOnStats(pageIndex: Int?, pagesCount: Int?) {
+        if (viewState.fileType == ReaderFileType.PDF && pagesCount != null && pagesCount > 0) {
+            bookshelfProgress.setCount(this.key, pagesCount)
+        }
+        if (!bookshelfPreferences.autoShelves) return
+        val atEnd = pageIndex != null && pagesCount != null && pagesCount > 1 && pageIndex + 1 >= pagesCount
+        val opening = !bookshelfOpenHandled
+        bookshelfOpenHandled = true
+        val finishing = atEnd && !bookshelfFinishHandled
+        if (finishing) bookshelfFinishHandled = true
+        if (!opening && !finishing) return
+        val bookKey = this.parentKey ?: this.key
+        val libraryId = this.library.identifier
+        viewModelScope.launch {
+            val shelf = bookshelfShelves.shelfOf(libraryId, bookKey)
+            val target = when {
+                finishing && shelf != org.zotero.android.bookshelf.Shelf.Finished ->
+                    org.zotero.android.bookshelf.Shelf.Finished
+                opening && !finishing && (shelf == null || shelf == org.zotero.android.bookshelf.Shelf.Want) ->
+                    org.zotero.android.bookshelf.Shelf.Reading
+                else -> null
+            }
+            if (target != null) bookshelfShelves.setShelf(libraryId, listOf(bookKey), target)
         }
     }
 

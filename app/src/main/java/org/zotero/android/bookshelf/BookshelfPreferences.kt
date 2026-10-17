@@ -34,6 +34,20 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         _pageTheme.value = theme
     }
 
+    private val _shelfFilter = MutableStateFlow(
+        Shelf.entries.firstOrNull { it.name == prefs.getString(KEY_SHELF_FILTER, null) }
+    )
+    /** Shelf the library is showing; null shows every book. */
+    val shelfFilter: StateFlow<Shelf?> = _shelfFilter.asStateFlow()
+
+    fun setShelfFilter(shelf: Shelf?) {
+        prefs.edit().putString(KEY_SHELF_FILTER, shelf?.name).apply()
+        _shelfFilter.value = shelf
+    }
+
+    /** Opening a book puts it on Reading; reaching the last page puts it on Finished. */
+    val autoShelves: Boolean get() = prefs.getBoolean(KEY_AUTO_SHELVES, true)
+
     fun setShowCovers(show: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_COVERS, show).apply()
         _showCovers.value = show
@@ -48,6 +62,8 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         const val KEY_SHOW_COVERS = "showCovers"
         const val KEY_COVER_SIZE = "coverSize"
         const val KEY_PAGE_THEME = "pageTheme"
+        const val KEY_SHELF_FILTER = "shelfFilter"
+        const val KEY_AUTO_SHELVES = "autoShelves"
     }
 }
 

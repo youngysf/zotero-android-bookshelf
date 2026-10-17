@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +62,19 @@ internal fun AllItemsScreen(
         val bookshelfViewModel: BookshelfViewModel = hiltViewModel()
         val showCovers by bookshelfViewModel.showCovers.collectAsState()
         val coverSize by bookshelfViewModel.coverSize.collectAsState()
+        val shelfFilter by bookshelfViewModel.shelfFilter.collectAsState()
+        val bookshelfSnapshot by bookshelfViewModel.snapshot.collectAsState()
+        val pageCounts by bookshelfViewModel.pageCounts.collectAsState()
         val lazyGridState = rememberLazyGridState()
+        // Shelves and reading positions: read again when the list changes and
+        // when coming back to this screen (e.g. from the reader).
+        var bookshelfResumes by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        org.zotero.android.architecture.ui.ObserveLifecycleEvent { event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) bookshelfResumes++
+        }
+        LaunchedEffect(showCovers, viewState.itemCellModels.size, viewState.lce, bookshelfResumes, viewState.isRefreshing) {
+            if (showCovers) viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.refresh(it) }
+        }
 
         val isTablet = layoutType.isTablet()
 
@@ -204,6 +217,14 @@ internal fun AllItemsScreen(
                         gridState = lazyGridState,
                         itemCellModels = viewState.itemCellModels,
                         coverSize = coverSize,
+                        shelfFilter = shelfFilter,
+                        snapshot = bookshelfSnapshot,
+                        pageCounts = pageCounts,
+                        showContinueReading = viewState.searchTerm.isNullOrBlank(),
+                        onShelfFilter = bookshelfViewModel::setShelfFilter,
+                        onSetShelf = { key, shelf ->
+                            viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.setShelf(it, listOf(key), shelf) }
+                        },
                         isEditing = viewState.isEditing,
                         isRefreshing = viewState.isRefreshing,
                         isItemSelected = viewState::isSelected,

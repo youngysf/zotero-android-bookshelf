@@ -672,6 +672,11 @@ internal class AllItemsViewModel @Inject constructor(
         }
     }
 
+    /** Bookshelf: the library being shown, for shelves and progress. */
+    fun bookshelfLibraryId(): org.zotero.android.sync.LibraryIdentifier? {
+        return library.identifier
+    }
+
     /** Bookshelf: the attachment whose first page is this item's cover. */
     fun bookshelfAttachment(key: String): Attachment? {
         return allItemsProcessor.getItemAccessoryByKey(key)?.attachmentGet
