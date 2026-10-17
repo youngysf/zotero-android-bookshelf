@@ -37,15 +37,6 @@ internal fun ReaderSettingsTable(
                     onSelected = viewModel::onBookshelfPageThemeSelected,
                 )
             }
-            if (viewState.fileType == ReaderFileType.PDF) {
-                item {
-                    val diagnostics by viewModel.bookshelfSelectionDiagnostics.collectAsState()
-                    org.zotero.android.bookshelf.BookshelfDiagnosticsRow(
-                        checked = diagnostics,
-                        onCheckedChange = viewModel::onBookshelfSelectionDiagnosticsChanged,
-                    )
-                }
-            }
         }
         if (viewState.fileType == ReaderFileType.PDF && !viewState.readingModeEnabled) {
             readerSettingsSettingRow(

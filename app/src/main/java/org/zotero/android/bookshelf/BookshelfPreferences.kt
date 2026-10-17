@@ -34,15 +34,6 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         _pageTheme.value = theme
     }
 
-    private val _selectionDiagnostics = MutableStateFlow(prefs.getBoolean(KEY_SELECTION_DIAGNOSTICS, false))
-    /** Temporary: on-screen selection event log in the PDF reader. */
-    val selectionDiagnostics: StateFlow<Boolean> = _selectionDiagnostics.asStateFlow()
-
-    fun setSelectionDiagnostics(on: Boolean) {
-        prefs.edit().putBoolean(KEY_SELECTION_DIAGNOSTICS, on).apply()
-        _selectionDiagnostics.value = on
-    }
-
     fun setShowCovers(show: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_COVERS, show).apply()
         _showCovers.value = show
@@ -57,7 +48,6 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         const val KEY_SHOW_COVERS = "showCovers"
         const val KEY_COVER_SIZE = "coverSize"
         const val KEY_PAGE_THEME = "pageTheme"
-        const val KEY_SELECTION_DIAGNOSTICS = "selectionDiagnostics"
     }
 }
 

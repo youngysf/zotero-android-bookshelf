@@ -21,6 +21,14 @@ class ReaderCustomWebView(context: Context, attrs: AttributeSet? = null) : WebVi
     private var gestureAlreadyReportedThisTouch = false
     private val touchSlop by lazy { ViewConfiguration.get(context).scaledTouchSlop }
 
+    init {
+        // Bookshelf: the PDF selection menu (drawn in the page) calls these.
+        addJavascriptInterface(
+            org.zotero.android.bookshelf.BookshelfSelectionBridge(this) { selectionActionModeDelegate },
+            org.zotero.android.bookshelf.BookshelfSelectionBridge.NAME,
+        )
+    }
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {

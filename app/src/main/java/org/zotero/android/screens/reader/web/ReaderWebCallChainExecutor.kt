@@ -37,6 +37,7 @@ class ReaderWebCallChainExecutor @Inject constructor(
     private val readerWebViewHandler: ReaderWebViewHandler,
     private val defaults: Defaults,
     private val bookshelfPreferences: org.zotero.android.bookshelf.BookshelfPreferences,
+    private val bookshelfSelection: org.zotero.android.bookshelf.BookshelfSelection,
 ) {
 
     private val limitedParallelismDispatcher =
@@ -509,13 +510,10 @@ class ReaderWebCallChainExecutor @Inject constructor(
 
         val toJson = encodeAsJSONForJavascript(this.gson, createReaderViewOptions)
         // Bookshelf: page colour is applied in the same script, before the first frame,
-        // and the text-selection fix is installed.
+        // and Bookshelf's own PDF text selection is installed.
         val javascript = "javascript:createView('${toJson}');" +
             bookshelfPreferences.pageTheme.value.applyScript() +
-            org.zotero.android.bookshelf.BookshelfReaderFixes.script +
-            (if (bookshelfPreferences.selectionDiagnostics.value) {
-                org.zotero.android.bookshelf.BookshelfSelectionDiagnostics.script
-            } else "")
+            bookshelfSelection.script
         return suspendCancellableCoroutine { cont ->
             readerWebViewHandler.evaluateJavascript(javascript) {
                 cont.resume(Unit)
@@ -527,10 +525,7 @@ class ReaderWebCallChainExecutor @Inject constructor(
     /** Bookshelf: apply the chosen page colour without touching the interface colours. */
     suspend fun applyBookshelfPageTheme() {
         return suspendCancellableCoroutine { cont ->
-            val diagnostics = if (bookshelfPreferences.selectionDiagnostics.value) {
-                org.zotero.android.bookshelf.BookshelfSelectionDiagnostics.script
-            } else ""
-            readerWebViewHandler.evaluateJavascript(bookshelfPreferences.pageTheme.value.applyScript() + diagnostics) {
+            readerWebViewHandler.evaluateJavascript(bookshelfPreferences.pageTheme.value.applyScript()) {
                 cont.resume(Unit)
             }
         }
