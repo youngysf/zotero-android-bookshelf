@@ -24,6 +24,7 @@
   var TOUCH_SLOP = 10;
   var EDGE_SCROLL_ZONE = 56;
   var PIN = 22;
+  var LOUPE_W = 150, LOUPE_H = 62, LOUPE_ZOOM = 1.5;
 
   // ---------------------------------------------------------------- UI (top document)
 
@@ -42,7 +43,9 @@
     '  font:500 14px/44px system-ui,-apple-system,Roboto,sans-serif;white-space:nowrap;}',
     '.bs-menu.dark{background:#2b2d31;color:#f1f1f3;box-shadow:0 2px 10px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);}',
     '.bs-menu button{all:unset;padding:0 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;}',
-    '.bs-menu button:active{background:rgba(127,127,127,.18);}'
+    '.bs-menu button:active{background:rgba(127,127,127,.18);}',
+    '.bs-loupe{position:fixed;display:none;width:' + LOUPE_W + 'px;height:' + LOUPE_H + 'px;border-radius:14px;',
+    '  box-shadow:0 3px 12px rgba(0,0,0,.28),0 0 0 .5px rgba(0,0,0,.12);pointer-events:none;background:#fff;}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -63,6 +66,10 @@
   ui.appendChild(startPin);
   ui.appendChild(endPin);
   ui.appendChild(menu);
+  // Magnifier shown above the end being dragged, since the finger covers it.
+  var loupe = document.createElement('canvas');
+  loupe.className = 'bs-loupe';
+  ui.appendChild(loupe);
   document.body.appendChild(ui);
 
   // ---------------------------------------------------------------- state
@@ -274,6 +281,7 @@
   // ---------------------------------------------------------------- pins and menu
 
   function hideUI() {
+    loupe.style.display = 'none';
     startPin.style.display = 'none';
     endPin.style.display = 'none';
     menu.style.display = 'none';
@@ -311,6 +319,8 @@
     }
     else endPin.style.display = 'none';
 
+    if (drag) drawLoupe(); else loupe.style.display = 'none';
+
     var showMenu = !drag && !press && Date.now() >= menuHiddenUntil && (visible(s) || visible(e));
     if (!showMenu) { menu.style.display = 'none'; return; }
     var dark = isDark();
@@ -332,6 +342,81 @@
     var x = Math.min(Math.max(cx - mw / 2, fr.left + 8), fr.right - mw - 8);
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
+  }
+
+  // Draws the page around the moving end of the selection, magnified: the
+  // rendered page canvas, the selection on top, and a caret at the end.
+  function drawLoupe() {
+    var h = sel.h;
+    var atEnd = cmp(h, sel.a) > 0;
+    var c = caretRect(h, atEnd);
+    var fr = iframe.getBoundingClientRect();
+    if (!c || c.bottom < fr.top || c.top > fr.bottom) { loupe.style.display = 'none'; return; }
+    var dpr = window.devicePixelRatio || 1;
+    if (loupe.width !== Math.round(LOUPE_W * dpr)) {
+      loupe.width = Math.round(LOUPE_W * dpr);
+      loupe.height = Math.round(LOUPE_H * dpr);
+    }
+    var midY = (c.top + c.bottom) / 2;
+    // Source area on screen (top-document coordinates).
+    var sw = LOUPE_W / LOUPE_ZOOM, sh = LOUPE_H / LOUPE_ZOOM;
+    var sx = c.x - sw / 2, sy = midY - sh / 2;
+    var k = dpr * LOUPE_ZOOM;
+    var ctx = loupe.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    var container = win.document.getElementById('viewerContainer');
+    ctx.fillStyle = (container && win.getComputedStyle(container).backgroundColor) || '#888';
+    if (ctx.fillStyle === 'rgba(0, 0, 0, 0)') ctx.fillStyle = '#888';
+    ctx.fillRect(0, 0, loupe.width, loupe.height);
+    var list = pages();
+    var dark = pv._themeColorScheme === 'dark';
+    for (var i = 0; i < list.length; i++) {
+      var page = list[i];
+      if (!page.div || !page.viewport) continue;
+      var dr = page.div.getBoundingClientRect();
+      var top = fr.top + dr.top, left = fr.left + dr.left;
+      if (top > sy + sh || top + dr.height < sy) continue;
+      var canvas = page.div.querySelector('.canvasWrapper canvas');
+      if (canvas && canvas.width) {
+        var cr = canvas.getBoundingClientRect();
+        var cl = fr.left + cr.left, ct = fr.top + cr.top;
+        var rx = canvas.width / cr.width, ry = canvas.height / cr.height;
+        // Intersect the source area with this canvas.
+        var x1 = Math.max(sx, cl), y1 = Math.max(sy, ct);
+        var x2 = Math.min(sx + sw, cl + cr.width), y2 = Math.min(sy + sh, ct + cr.height);
+        if (x2 > x1 && y2 > y1) {
+          try {
+            ctx.drawImage(canvas, (x1 - cl) * rx, (y1 - ct) * ry, (x2 - x1) * rx, (y2 - y1) * ry,
+              (x1 - sx) * k, (y1 - sy) * k, (x2 - x1) * k, (y2 - y1) * k);
+          } catch (e) {}
+        }
+      }
+      // The selection, as the reader draws it.
+      ctx.save();
+      ctx.globalAlpha = dark ? 0.7 : 0.4;
+      ctx.globalCompositeOperation = dark ? 'lighten' : 'multiply';
+      ctx.fillStyle = '#71ADFD';
+      (pv._selectionRanges || []).forEach(function (r) {
+        if (!r.position || r.position.pageIndex !== i || !r.position.rects) return;
+        r.position.rects.forEach(function (rect) {
+          var v = page.viewport.convertToViewportRectangle(rect);
+          var vx = Math.min(v[0], v[2]), vy = Math.min(v[1], v[3]);
+          ctx.fillRect((left + vx - sx) * k, (top + vy - sy) * k,
+            Math.abs(v[2] - v[0]) * k, Math.abs(v[3] - v[1]) * k);
+        });
+      });
+      ctx.restore();
+    }
+    // Caret.
+    ctx.fillStyle = '#2F6FEB';
+    ctx.fillRect((c.x - sx) * k - dpr, (c.top - sy) * k, 2 * dpr, (c.bottom - c.top) * k);
+    // Above the line, clear of the finger; below the pin if there's no room.
+    var ly = c.top - LOUPE_H - 14;
+    if (ly < fr.top + 4) ly = c.bottom + PIN + 40;
+    var lx = Math.min(Math.max(c.x - LOUPE_W / 2, fr.left + 6), fr.right - LOUPE_W - 6);
+    loupe.style.left = lx + 'px';
+    loupe.style.top = ly + 'px';
+    loupe.style.display = 'block';
   }
 
   function isDark() {
