@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -66,7 +67,7 @@ internal fun ReaderSidebar(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             selectorOptionsStrings.forEachIndexed { index, selectorOption ->
-                androidx.compose.material3.SegmentedButton(
+                SegmentedButton(
                     selected = selectorOptions.indexOf(selectedOption) == index,
                     onClick = { viewModel.setSidebarSliderSelectedOption(selectorOptions[index]) },
                     shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(index, selectorOptionsStrings.size),
