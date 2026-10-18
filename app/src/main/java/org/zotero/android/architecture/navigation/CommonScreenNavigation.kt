@@ -2,6 +2,9 @@ package org.zotero.android.architecture.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.navigation.NavGraphBuilder
@@ -49,10 +52,13 @@ fun NavGraphBuilder.allItemsScreen(
     onShowHtmlOrEpub: (String, String) -> Unit,
     isTablet: Boolean,
     navigateToSettings: () -> Unit = {},
+    navigateToAllItemsInPlace: () -> Unit = {},
 ) {
     composable(
         route = CommonScreenDestinations.ALL_ITEMS,
         popEnterTransition = {
+            // Bookshelf: on phones the library and collections cross-fade.
+            if (!isTablet) fadeIn(tween(220)) else run {
             if (isTablet) {
                 EnterTransition.None
             } else {
@@ -62,6 +68,7 @@ fun NavGraphBuilder.allItemsScreen(
                     slideInHorizontally(initialOffsetX = { it })
                 }
             }
+        }
         },
 //        popExitTransition = {
 //            if (ScreenArguments.allItemsCollectionsLibsNavDirectionLeftToRight) {
@@ -71,6 +78,8 @@ fun NavGraphBuilder.allItemsScreen(
 //            }
 //        },
         exitTransition = {
+            // Bookshelf: on phones the library and collections cross-fade.
+            if (!isTablet) fadeOut(tween(200)) else run {
             if (isTablet) {
                 ExitTransition.None
             } else {
@@ -81,8 +90,11 @@ fun NavGraphBuilder.allItemsScreen(
                 }
             }
 
+        }
         },
         enterTransition = {
+            // Bookshelf: on phones the library and collections cross-fade.
+            if (!isTablet) fadeIn(tween(220)) else run {
             if (isTablet) {
                 EnterTransition.None
             } else {
@@ -92,6 +104,7 @@ fun NavGraphBuilder.allItemsScreen(
                     slideInHorizontally(initialOffsetX = { -it })
                 }
             }
+        }
         }) {
         AllItemsScreen(
             onPickFile = onPickFile,
@@ -115,6 +128,7 @@ fun NavGraphBuilder.allItemsScreen(
             navigateToSingleCitation = navigateToSingleCitation,
             navigateToCitationBibliographyExport = navigateToCitationBibliographyExport,
             navigateToSettings = navigateToSettings,
+            navigateToAllItemsInPlace = navigateToAllItemsInPlace,
         )
     }
 }
@@ -266,26 +280,35 @@ fun NavGraphBuilder.collectionsScreen(
 //            }
 //        },
         popEnterTransition = {
+            // Bookshelf: on phones the library and collections cross-fade.
+            if (!isTablet) fadeIn(tween(220)) else run {
             if (ScreenArguments.allItemsCollectionsLibsNavDirectionLeftToRight) {
                 slideInHorizontally(initialOffsetX = { -it })
             } else {
                 slideInHorizontally(initialOffsetX = { it })
             }
+        }
         },
         enterTransition = {
+            // Bookshelf: on phones the library and collections cross-fade.
+            if (!isTablet) fadeIn(tween(220)) else run {
             if (ScreenArguments.allItemsCollectionsLibsNavDirectionLeftToRight) {
                 slideInHorizontally(initialOffsetX = { it })
             } else {
                 slideInHorizontally(initialOffsetX = { -it })
             }
+        }
         },
         exitTransition = {
+            // Bookshelf: on phones the library and collections cross-fade.
+            if (!isTablet) fadeOut(tween(200)) else run {
             if (!isTablet && ScreenArguments.allItemsCollectionsLibsNavDirectionLeftToRight) {
                 slideOutHorizontally(targetOffsetX = { -it })
             } else {
                 slideOutHorizontally(targetOffsetX = { it })
             }
 
+        }
         },
     ) {
         CollectionsScreen(
@@ -293,6 +316,8 @@ fun NavGraphBuilder.collectionsScreen(
             navigateToAllItems = navigateToAllItems,
             navigateToLibraries = navigateToLibraries,
             navigateToCollectionEdit = navigateToCollectionEdit,
+            // Bookshelf: on phones this is "Manage collections", opened from the
+            // library's title, so back returns to the library.
             showBookshelfNavBar = !isTablet,
             navigateToSettings = navigateToSettings,
         )

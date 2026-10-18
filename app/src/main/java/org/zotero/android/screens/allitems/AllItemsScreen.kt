@@ -55,6 +55,7 @@ internal fun AllItemsScreen(
     onShowPdf: (String, String) -> Unit,
     onShowHtmlOrEpub: (String, String) -> Unit,
     navigateToSettings: () -> Unit = {},
+    navigateToAllItemsInPlace: () -> Unit = {},
 ) {
     AppThemeM3 {
         val layoutType = CustomLayoutSize.calculateLayoutType()
@@ -110,6 +111,7 @@ internal fun AllItemsScreen(
         LaunchedEffect(key1 = viewEffect) {
             when (val consumedEffect = viewEffect?.consume()) {
                 null -> Unit
+                AllItemsViewEffect.BookshelfReloadCollection -> navigateToAllItemsInPlace()
                 is AllItemsViewEffect.ShowCollectionsEffect -> navigateToCollectionsScreen(
                     consumedEffect.screenArgs
                 )
@@ -207,7 +209,6 @@ internal fun AllItemsScreen(
             when (tab) {
                 org.zotero.android.bookshelf.BookshelfTab.Library,
                 org.zotero.android.bookshelf.BookshelfTab.Highlights -> bookshelfTab = tab
-                org.zotero.android.bookshelf.BookshelfTab.Collections -> viewModel.navigateToCollections()
                 org.zotero.android.bookshelf.BookshelfTab.Settings -> navigateToSettings()
             }
         }
@@ -229,6 +230,12 @@ internal fun AllItemsScreen(
                         title = viewState.collectionName,
                         searchTerm = viewState.searchTerm,
                         scrollBehavior = scrollBehavior,
+                        currentCollection = viewModel.bookshelfCollectionId(),
+                        loadCollections = {
+                            viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.collectionMenu(it) } ?: emptyList()
+                        },
+                        onSelectCollection = viewModel::bookshelfSwitchCollection,
+                        onManageCollections = viewModel::navigateToCollections,
                         onSearch = viewModel::onSearch,
                         onView = { showViewSheet = true },
                         onAdd = viewModel::onAdd,

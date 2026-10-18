@@ -17,6 +17,7 @@ class BookshelfViewModel @Inject constructor(
     private val covers: BookshelfCovers,
     private val shelves: BookshelfShelves,
     private val notes: BookshelfNotes,
+    private val collections: BookshelfCollections,
     progress: BookshelfProgress,
 ) : ViewModel() {
     val showCovers: StateFlow<Boolean> = preferences.showCovers
@@ -41,6 +42,8 @@ class BookshelfViewModel @Inject constructor(
     suspend fun tintFor(attachment: Attachment?): Int? {
         return attachment?.let { covers.tintFor(it) }
     }
+
+    suspend fun collectionMenu(libraryId: LibraryIdentifier): List<BookshelfCollectionEntry> = collections.menu(libraryId)
 
     suspend fun notes(libraryId: LibraryIdentifier): List<BookshelfNote> = notes.all(libraryId)
 

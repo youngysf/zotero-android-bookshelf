@@ -719,6 +719,23 @@ internal class AllItemsViewModel @Inject constructor(
         return true
     }
 
+    /** Bookshelf: the collection being shown, for the title's drop-down. */
+    fun bookshelfCollectionId(): CollectionIdentifier = collection.identifier
+
+    /** Bookshelf: shows another collection in place (the screen reloads with it). */
+    fun bookshelfSwitchCollection(target: Collection) {
+        viewModelScope.launch {
+            fileStore.setSelectedCollectionIdAsync(target.identifier)
+            ScreenArguments.allItemsArgs = org.zotero.android.screens.allitems.data.AllItemsArgs(
+                collection = target,
+                library = library,
+                searchTerm = null,
+                error = null,
+            )
+            triggerEffect(AllItemsViewEffect.BookshelfReloadCollection)
+        }
+    }
+
     /** Bookshelf: the library being shown, for shelves and progress. */
     fun bookshelfLibraryId(): org.zotero.android.sync.LibraryIdentifier? {
         return library.identifier
@@ -1524,6 +1541,7 @@ internal data class AllItemsViewState(
 }
 
 internal sealed class AllItemsViewEffect : ViewEffect {
+    object BookshelfReloadCollection : AllItemsViewEffect()
     data class ShowCollectionsEffect(val screenArgs: String): AllItemsViewEffect()
     data class ShowItemDetailEffect(val screenArgs: String): AllItemsViewEffect()
     data class ShowAddOrEditNoteEffect(val screenArgs: String): AllItemsViewEffect()

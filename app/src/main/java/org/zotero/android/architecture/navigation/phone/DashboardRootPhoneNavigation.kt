@@ -160,6 +160,7 @@ internal fun DashboardRootPhoneNavigation(
             },
             isTablet = false,
             navigateToSettings = { navigation.toSettingsScreen() },
+            navigateToAllItemsInPlace = { toAllItems(navController = navController, collectionArgs = "") },
         )
         itemDetailsScreen(
             navigateToCreatorEdit = navigation::toCreatorEdit,

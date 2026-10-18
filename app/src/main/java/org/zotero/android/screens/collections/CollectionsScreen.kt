@@ -84,23 +84,6 @@ internal fun CollectionsScreen(
                     onAdd = viewModel::onAdd,
                 )
             },
-            bottomBar = {
-                if (showBookshelfNavBar) {
-                    org.zotero.android.bookshelf.BookshelfNavBar(
-                        selected = org.zotero.android.bookshelf.BookshelfTab.Collections,
-                        onSelect = { tab ->
-                            when (tab) {
-                                org.zotero.android.bookshelf.BookshelfTab.Collections -> Unit
-                                org.zotero.android.bookshelf.BookshelfTab.Settings -> navigateToSettings()
-                                else -> {
-                                    org.zotero.android.bookshelf.BookshelfTabRequest.set(tab)
-                                    onBack()
-                                }
-                            }
-                        },
-                    )
-                }
-            },
         ) {
             BaseLceBox(
                 modifier = Modifier.fillMaxSize(),

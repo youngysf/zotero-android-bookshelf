@@ -85,7 +85,6 @@ import org.zotero.android.uicomponents.Drawables
 
 enum class BookshelfTab(val label: String, val icon: Int) {
     Library("Library", Drawables.bookshelf_library_24px),
-    Collections("Collections", Drawables.bookshelf_folder_24px),
     Highlights("Highlights", Drawables.bookshelf_highlight_24px),
     Settings("Settings", Drawables.settings_24px),
 }
@@ -126,6 +125,10 @@ internal fun BookshelfLibraryTopBar(
     title: String,
     searchTerm: String?,
     scrollBehavior: TopAppBarScrollBehavior,
+    currentCollection: org.zotero.android.sync.CollectionIdentifier?,
+    loadCollections: suspend () -> List<BookshelfCollectionEntry>,
+    onSelectCollection: (org.zotero.android.sync.Collection) -> Unit,
+    onManageCollections: () -> Unit,
     onSearch: (String) -> Unit,
     onView: () -> Unit,
     onAdd: () -> Unit,
@@ -150,10 +153,12 @@ internal fun BookshelfLibraryTopBar(
         } else {
             LargeTopAppBar(
                 title = {
-                    Text(
-                        text = title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    CollectionTitle(
+                        title = title,
+                        current = currentCollection,
+                        load = loadCollections,
+                        onSelect = onSelectCollection,
+                        onManage = onManageCollections,
                     )
                 },
                 actions = {
@@ -173,6 +178,110 @@ internal fun BookshelfLibraryTopBar(
                 ),
                 scrollBehavior = scrollBehavior,
             )
+        }
+    }
+}
+
+/** The library's title; tap it to pick a collection from a drop-down list. */
+@Composable
+private fun CollectionTitle(
+    title: String,
+    current: org.zotero.android.sync.CollectionIdentifier?,
+    load: suspend () -> List<BookshelfCollectionEntry>,
+    onSelect: (org.zotero.android.sync.Collection) -> Unit,
+    onManage: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    var entries by remember { mutableStateOf<List<BookshelfCollectionEntry>?>(null) }
+    LaunchedEffect(open) { if (open) entries = load() }
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable { open = true }
+                .padding(end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Icon(
+                painterResource(Drawables.expand_more_24px),
+                contentDescription = "Choose collection",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.width(300.dp),
+        ) {
+            val list = entries
+            if (list == null) {
+                DropdownMenuItem(text = { Text("Loading…") }, onClick = {}, enabled = false)
+            } else {
+                for (entry in list) {
+                    val collection = entry.collection
+                    val selected = collection.identifier == current
+                    val custom = collection.identifier is org.zotero.android.sync.CollectionIdentifier.custom
+                    if (custom && list.indexOf(entry) > 1 && list.indexOf(entry) == list.size - 2) {
+                        HorizontalDivider()
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = collection.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (!custom && collection.itemCount > 0) {
+                                    Text(
+                                        text = "${collection.itemCount}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
+                        leadingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(Modifier.width((entry.depth * 16).dp))
+                                Icon(
+                                    painterResource(
+                                        when {
+                                            !custom -> Drawables.bookshelf_folder_24px
+                                            collection.identifier == org.zotero.android.sync.CollectionIdentifier.custom(org.zotero.android.sync.CollectionIdentifier.CustomType.trash) -> Drawables.delete_24px
+                                            else -> Drawables.bookshelf_library_24px
+                                        }
+                                    ),
+                                    contentDescription = null,
+                                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        },
+                        onClick = {
+                            open = false
+                            if (!selected) onSelect(collection)
+                        },
+                    )
+                    if (list.indexOf(entry) == 0) HorizontalDivider()
+                }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("Manage collections…") },
+                    leadingIcon = { Icon(painterResource(Drawables.edit_24px), null, Modifier.size(20.dp)) },
+                    onClick = { open = false; onManage() },
+                )
+            }
         }
     }
 }
