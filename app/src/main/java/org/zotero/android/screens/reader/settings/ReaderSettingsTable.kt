@@ -27,6 +27,13 @@ internal fun ReaderSettingsTable(
             selectedOption = viewState.selectedAppearanceOption,
             optionSelected = viewModel::onOptionSelected
         )
+        item {
+            val brightness by viewModel.bookshelfBrightness.collectAsState()
+            org.zotero.android.bookshelf.BookshelfBrightnessRow(
+                value = brightness,
+                onChange = viewModel::onBookshelfBrightnessChanged,
+            )
+        }
         if (viewState.fileType == ReaderFileType.PDF || viewState.fileType == ReaderFileType.EPUB
             || viewState.fileType == ReaderFileType.HTML
         ) {

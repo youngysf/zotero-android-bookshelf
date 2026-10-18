@@ -72,15 +72,18 @@ internal fun ReaderAnnotationsSidebar(
                 val annotation = viewModel.annotation(key) ?: return@itemsIndexed
                 val isSelected = viewState.isAnnotationSelected(annotation.key)
                 val roundedCornerShape = RoundedCornerShape(14.dp)
+                // Bookshelf: each card is tinted with its highlight's colour.
+                val cardTint = Color(annotation.displayColor.toColorInt()).copy(alpha = 0.10f)
                 var rowModifier: Modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .clip(shape = roundedCornerShape)
                     .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .background(cardTint)
 
                 if (isSelected) {
                     rowModifier = rowModifier.border(
-                        width = 3.dp,
-                        color = MaterialTheme.colorScheme.secondary,
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
                         shape = roundedCornerShape
                     )
                 }

@@ -29,6 +29,15 @@ class BookshelfViewModel @Inject constructor(
     fun setShowCovers(show: Boolean) = preferences.setShowCovers(show)
     fun setLayout(layout: LibraryLayout) = preferences.setLayout(layout)
 
+    val appTheme: StateFlow<AppTheme> = preferences.appTheme
+    fun setAppTheme(theme: AppTheme) = preferences.setAppTheme(theme)
+    val autoShelves: StateFlow<Boolean> = preferences.autoShelvesFlow
+    fun setAutoShelves(on: Boolean) = preferences.setAutoShelves(on)
+    val pageTheme: StateFlow<PageTheme> = preferences.pageTheme
+    fun setPageTheme(theme: PageTheme) = preferences.setPageTheme(theme)
+    val readerBrightness: StateFlow<Float> = preferences.readerBrightness
+    fun setReaderBrightness(value: Float) = preferences.setReaderBrightness(value)
+
     suspend fun tintFor(attachment: Attachment?): Int? {
         return attachment?.let { covers.tintFor(it) }
     }

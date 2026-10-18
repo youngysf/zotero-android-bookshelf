@@ -68,12 +68,23 @@ class BookshelfCovers @Inject constructor(
     suspend fun tintFor(attachment: Attachment): Int? {
         tints[attachment.key]?.let { return it }
         val cover = coverFor(attachment) ?: return null
+        return tintOfCover(cover, attachment.key)
+    }
+
+    /** The same, for a PDF the reader has open. */
+    suspend fun tintForPdf(pdf: File, libraryId: org.zotero.android.sync.LibraryIdentifier, key: String): Int? {
+        tints[key]?.let { return it }
+        val cover = coverFor(pdf, "${libraryId.folderName}-$key", key) ?: return null
+        return tintOfCover(cover, key)
+    }
+
+    private suspend fun tintOfCover(cover: File, key: String): Int? {
         return withContext(Dispatchers.IO) {
             try {
                 val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 16 }
                 val bitmap = android.graphics.BitmapFactory.decodeFile(cover.absolutePath, options) ?: return@withContext null
                 val tint = try { coverTint(bitmap) } finally { bitmap.recycle() }
-                tints[attachment.key] = tint
+                tints[key] = tint
                 tint
             } catch (e: Throwable) {
                 null

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -97,6 +98,39 @@ fun BookshelfPageThemeRow(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Reader settings row: screen brightness while reading, or the system's. */
+@Composable
+fun BookshelfBrightnessRow(value: Float, onChange: (Float) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Brightness",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "Use system",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            androidx.compose.material3.Switch(
+                checked = value < 0f,
+                onCheckedChange = { system -> onChange(if (system) -1f else 0.5f) },
+            )
+        }
+        if (value >= 0f) {
+            androidx.compose.material3.Slider(
+                value = value,
+                onValueChange = onChange,
+                valueRange = 0.02f..1f,
+            )
         }
     }
 }

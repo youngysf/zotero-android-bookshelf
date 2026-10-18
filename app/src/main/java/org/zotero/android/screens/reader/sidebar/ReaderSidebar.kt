@@ -1,7 +1,11 @@
 package org.zotero.android.screens.reader.sidebar
 
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
@@ -29,6 +33,7 @@ private val pdfSliderOptions = listOf(
     ReaderSliderOptions.Outline
 )
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReaderSidebar(
     viewModel: ReaderViewModel,
@@ -48,33 +53,25 @@ internal fun ReaderSidebar(
             }
 
         val selectedOption = viewState.sidebarSliderSelectedOption
-        SecondaryTabRow(
+        // Bookshelf: pill-shaped tabs.
+        androidx.compose.material3.SingleChoiceSegmentedButtonRow(
             modifier = Modifier
                 .pointerInput(Unit) {
                     detectTapGestures {
                         //Prevent tap to be propagated to composables behind this screen.
                     }
-                },
-            selectedTabIndex = selectorOptions.indexOf(selectedOption)
+                }
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             selectorOptionsStrings.forEachIndexed { index, selectorOption ->
-                val isSelected = selectorOptions.indexOf(selectedOption) == index
-                Tab(
-                    text = {
-                        val textColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                        Text(
-                            text = selectorOption,
-                            color = textColor,
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-
-                    },
-                    selected = isSelected,
-                    onClick = { viewModel.setSidebarSliderSelectedOption(selectorOptions[index]) }
+                androidx.compose.material3.SegmentedButton(
+                    selected = selectorOptions.indexOf(selectedOption) == index,
+                    onClick = { viewModel.setSidebarSliderSelectedOption(selectorOptions[index]) },
+                    shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(index, selectorOptionsStrings.size),
+                    icon = {},
+                    label = { Text(text = selectorOption, style = MaterialTheme.typography.labelLarge) },
                 )
             }
         }

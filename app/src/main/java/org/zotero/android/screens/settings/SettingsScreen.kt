@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,44 +57,49 @@ internal fun SettingsScreen(
                 )
             },
         ) {
+            // Bookshelf: settings grouped as Appearance, Reading, Library, Sync,
+            // Advanced (Zotero's research tools) and About.
+            val bookshelfViewModel: org.zotero.android.bookshelf.BookshelfViewModel = hiltViewModel()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
             ) {
-                Spacer(modifier = Modifier.height(4.dp))
-                NewSettingsItem(
-                    title = stringResource(id = Strings.settings_sync_account),
-                    onItemTapped = toAccountScreen,
-                )
-
-                NewSettingsDivider()
-
-                NewSettingsItem(
-                    title = stringResource(id = Strings.settings_export_title),
-                    onItemTapped = toQuickCopyScreen,
-                )
-                NewSettingsItem(
-                    title = stringResource(id = Strings.settings_cite_title),
-                    onItemTapped = toCiteScreen,
-                )
-                NewSettingsItem(
-                    title = stringResource(id = Strings.settings_debug),
-                    onItemTapped = toDebugScreen,
-                )
-
-                NewSettingsDivider()
-
-                NewSettingsItem(
-                    title = stringResource(id = Strings.support_feedback),
-                    onItemTapped = viewModel::openSupportAndFeedback
-                )
-                NewSettingsItem(
-                    title = stringResource(id = Strings.privacy_policy),
-                    onItemTapped = viewModel::openPrivacyPolicy
-                )
-
-                NewSettingsDivider()
-
+                org.zotero.android.bookshelf.BookshelfSettingsSections(bookshelfViewModel)
+                org.zotero.android.bookshelf.BookshelfSettingsGroup("Sync") {
+                    org.zotero.android.bookshelf.BookshelfSettingsLink(
+                        title = stringResource(id = Strings.settings_sync_account),
+                        description = "Your Zotero account, syncing and file storage",
+                        onClick = toAccountScreen,
+                    )
+                }
+                org.zotero.android.bookshelf.BookshelfSettingsGroup("Advanced") {
+                    org.zotero.android.bookshelf.BookshelfSettingsLink(
+                        title = stringResource(id = Strings.settings_export_title),
+                        description = "Quick copy format for citations",
+                        onClick = toQuickCopyScreen,
+                    )
+                    org.zotero.android.bookshelf.BookshelfSettingsLink(
+                        title = stringResource(id = Strings.settings_cite_title),
+                        description = "Citation styles",
+                        onClick = toCiteScreen,
+                    )
+                    org.zotero.android.bookshelf.BookshelfSettingsLink(
+                        title = stringResource(id = Strings.settings_debug),
+                        onClick = toDebugScreen,
+                    )
+                }
+                org.zotero.android.bookshelf.BookshelfSettingsGroup("About") {
+                    org.zotero.android.bookshelf.BookshelfSettingsLink(
+                        title = stringResource(id = Strings.support_feedback),
+                        onClick = viewModel::openSupportAndFeedback,
+                    )
+                    org.zotero.android.bookshelf.BookshelfSettingsLink(
+                        title = stringResource(id = Strings.privacy_policy),
+                        onClick = viewModel::openPrivacyPolicy,
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 BuildInfo()
             }
         }

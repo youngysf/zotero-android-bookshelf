@@ -17,6 +17,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -50,10 +52,15 @@ internal fun ReaderTopBar(
 ) {
     val isTablet = CustomLayoutSize.calculateLayoutType().isTablet()
 
+    // Bookshelf: the bar takes a hint of colour from the book's cover.
+    val bookshelfTint by viewModel.bookshelfTint.collectAsState()
+    val barColor = bookshelfTint?.let {
+        androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surface, androidx.compose.ui.graphics.Color(it), 0.22f)
+    } ?: MaterialTheme.colorScheme.surface
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = barColor,
+            scrolledContainerColor = barColor
         ),
         title = {},
         navigationIcon = {

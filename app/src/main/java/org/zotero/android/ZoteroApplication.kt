@@ -56,6 +56,7 @@ open class ZoteroApplication: Application(), DefaultLifecycleObserver {
     override fun onCreate() {
         super<Application>.onCreate()
         instance = this
+        org.zotero.android.bookshelf.AppTheme.applySaved(this)
         setUpLogging()
 
         controllers.init()

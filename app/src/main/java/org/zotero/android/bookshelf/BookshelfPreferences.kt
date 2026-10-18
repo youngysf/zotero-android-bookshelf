@@ -59,6 +59,35 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         _shelfFilter.value = shelf
     }
 
+    private val _readerBrightness = MutableStateFlow(prefs.getFloat(KEY_READER_BRIGHTNESS, -1f))
+    /** Screen brightness while reading, 0..1, or -1 to follow the system. */
+    val readerBrightness: StateFlow<Float> = _readerBrightness.asStateFlow()
+
+    fun setReaderBrightness(value: Float) {
+        prefs.edit().putFloat(KEY_READER_BRIGHTNESS, value).apply()
+        _readerBrightness.value = value
+    }
+
+    private val _appTheme = MutableStateFlow(
+        AppTheme.entries.firstOrNull { it.name == prefs.getString(KEY_APP_THEME, null) } ?: AppTheme.System
+    )
+    /** Light or dark look for the whole app, or follow the phone. */
+    val appTheme: StateFlow<AppTheme> = _appTheme.asStateFlow()
+
+    fun setAppTheme(theme: AppTheme) {
+        prefs.edit().putString(KEY_APP_THEME, theme.name).apply()
+        _appTheme.value = theme
+        theme.apply()
+    }
+
+    private val _autoShelves = MutableStateFlow(prefs.getBoolean(KEY_AUTO_SHELVES, true))
+    val autoShelvesFlow: StateFlow<Boolean> = _autoShelves.asStateFlow()
+
+    fun setAutoShelves(on: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_SHELVES, on).apply()
+        _autoShelves.value = on
+    }
+
     /** Opening a book puts it on Reading; reaching the last page puts it on Finished. */
     val autoShelves: Boolean get() = prefs.getBoolean(KEY_AUTO_SHELVES, true)
 
@@ -77,7 +106,34 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         const val KEY_PAGE_THEME = "pageTheme"
         const val KEY_SHELF_FILTER = "shelfFilter"
         const val KEY_LAYOUT = "layout"
+        const val KEY_APP_THEME = "appTheme"
+        const val KEY_READER_BRIGHTNESS = "readerBrightness"
         const val KEY_AUTO_SHELVES = "autoShelves"
+    }
+}
+
+enum class AppTheme(val label: String) {
+    System("System"),
+    Light("Light"),
+    Dark("Dark");
+
+    fun apply() {
+        androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+            when (this) {
+                System -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                Light -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                Dark -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+            }
+        )
+    }
+
+    companion object {
+        /** Applies the saved choice when the app starts. */
+        fun applySaved(context: android.content.Context) {
+            val saved = context.getSharedPreferences("bookshelf", android.content.Context.MODE_PRIVATE)
+                .getString("appTheme", null)
+            (entries.firstOrNull { it.name == saved } ?: System).apply()
+        }
     }
 }
 

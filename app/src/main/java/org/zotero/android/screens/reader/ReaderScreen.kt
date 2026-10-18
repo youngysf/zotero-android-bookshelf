@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -90,6 +91,22 @@ internal fun ReaderScreen(
             }
 
             else -> {}
+        }
+    }
+    // Bookshelf: the reader's own screen brightness, put back on leaving.
+    val bookshelfBrightness by viewModel.bookshelfBrightness.collectAsState()
+    androidx.compose.runtime.DisposableEffect(bookshelfBrightness) {
+        val attributes = activity.window.attributes
+        attributes.screenBrightness = if (bookshelfBrightness < 0f) {
+            android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        } else {
+            bookshelfBrightness
+        }
+        activity.window.attributes = attributes
+        onDispose {
+            val reset = activity.window.attributes
+            reset.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            activity.window.attributes = reset
         }
     }
     AppThemeM3(darkTheme = viewState.isDark) {

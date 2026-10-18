@@ -12,6 +12,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -20,36 +23,36 @@ import org.zotero.android.screens.reader.ReaderViewModel
 import org.zotero.android.screens.reader.ReaderViewState
 import org.zotero.android.uicomponents.theme.CustomTheme
 
+/**
+ * Bookshelf: on phones the reader settings ("Aa") open as one sheet over the
+ * page, so changes can be seen as they're made.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReaderSettingsView(
     viewState: ReaderViewState,
     viewModel: ReaderViewModel
 ) {
-    AnimatedContent(
-        targetState = viewState.readerSettingsArgs != null,
-        transitionSpec = {
-            createTransitionSpec()
-        }, label = ""
-    ) { showView ->
-        if (showView) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(CustomTheme.colors.pdfAnnotationsFormBackground)
-                    .pointerInput(Unit) {
-                        detectTapGestures {
-                            //Prevent tap to be propagated to composables behind this screen.
-                        }
-                    }
-            ) {
-                val args = viewState.readerSettingsArgs
-                if (args != null) {
-                    ReaderSettingsScreen(
-                        args = args,
-                        onBack = viewModel::hideSettingsView
-                    )
-                }
-            }
+    val args = viewState.readerSettingsArgs ?: return
+    val settingsViewModel: ReaderSettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = {
+            settingsViewModel.applyChangesImmediately()
+            viewModel.hideSettingsView()
+        },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(560.dp),
+        ) {
+            ReaderSettingsScreen(
+                args = args,
+                onBack = viewModel::hideSettingsView,
+                viewModel = settingsViewModel,
+            )
         }
     }
 }

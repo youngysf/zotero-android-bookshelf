@@ -155,6 +155,7 @@ class ReaderViewModel @Inject constructor(
     private val bookshelfShelves: org.zotero.android.bookshelf.BookshelfShelves,
     private val bookshelfProgress: org.zotero.android.bookshelf.BookshelfProgress,
     private val bookshelfPreferences: org.zotero.android.bookshelf.BookshelfPreferences,
+    private val bookshelfCovers: org.zotero.android.bookshelf.BookshelfCovers,
 
     stateHandle: SavedStateHandle,
 ) : BaseViewModel2<ReaderViewState, ReaderViewEffect>(ReaderViewState())  {
@@ -1685,6 +1686,8 @@ class ReaderViewModel @Inject constructor(
                 }
                 readerWebCallChainExecutor.updateInterface(pdfReaderCurrentThemeEventStream.currentValue()!!.isDark)
                 readerWebCallChainExecutor.applyBookshelfPageTheme() // Bookshelf
+                bookshelfScheduleAutoHide()
+                bookshelfLoadTint()
             }
 
             is ReaderWebData.setReadingModeEnabled -> {
@@ -1790,6 +1793,19 @@ class ReaderViewModel @Inject constructor(
             updateState { copy(pageProgress = pageProgress) }
         }
     }
+
+    /** Bookshelf: a colour from the book's cover, for the reader's bars. */
+    val bookshelfTint = kotlinx.coroutines.flow.MutableStateFlow<Int?>(null)
+
+    private fun bookshelfLoadTint() {
+        if (viewState.fileType != ReaderFileType.PDF) return
+        viewModelScope.launch {
+            bookshelfTint.value = bookshelfCovers.tintForPdf(this@ReaderViewModel.originalFile, this@ReaderViewModel.library.identifier, this@ReaderViewModel.key)
+        }
+    }
+
+    /** Bookshelf: screen brightness while reading (-1 follows the system). */
+    val bookshelfBrightness get() = bookshelfPreferences.readerBrightness
 
     // Bookshelf: page counts for progress bars, and automatic shelves
     // (opening a book puts it on Reading, reaching its last page on Finished).
@@ -2495,7 +2511,42 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    // Bookshelf: the bars get out of the way while reading. They hide when the
+    // page is scrolled or zoomed, and a few seconds after a book opens; a tap
+    // brings them back. They stay while a tool, the sidebar, the settings or a
+    // selection is in use.
+    private var bookshelfAutoHideJob: kotlinx.coroutines.Job? = null
+
+    private fun bookshelfCanAutoHide(): Boolean {
+        return viewState.isTopBarVisible
+            && viewState.activeTool == null
+            && !viewState.showSideBar
+            && !viewState.showCreationToolbar
+            && viewState.readerSettingsArgs == null
+            && viewState.selectedText == null
+            && viewState.selectedAnnotationKey == null
+    }
+
+    private fun bookshelfHideBars() {
+        if (!bookshelfCanAutoHide()) return
+        updateState { copy(isScrubberSuppressedByScroll = false) }
+        setTopBarVisibility(false)
+    }
+
+    private fun bookshelfScheduleAutoHide() {
+        bookshelfAutoHideJob?.cancel()
+        bookshelfAutoHideJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(2500)
+            bookshelfHideBars()
+        }
+    }
+
     fun onDocumentUserGestureDetected() {
+        bookshelfAutoHideJob?.cancel()
+        if (bookshelfCanAutoHide()) {
+            bookshelfHideBars()
+            return
+        }
         if (viewState.fileType != ReaderFileType.PDF) {
             return
         }
