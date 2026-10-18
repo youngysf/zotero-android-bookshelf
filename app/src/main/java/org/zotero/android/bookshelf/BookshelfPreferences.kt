@@ -88,6 +88,15 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         _autoShelves.value = on
     }
 
+    private val _notesNewestFirst = MutableStateFlow(prefs.getBoolean(KEY_NOTES_NEWEST_FIRST, false))
+    /** Highlights listed newest first (true) or in page order (false). */
+    val notesNewestFirst: StateFlow<Boolean> = _notesNewestFirst.asStateFlow()
+
+    fun setNotesNewestFirst(on: Boolean) {
+        prefs.edit().putBoolean(KEY_NOTES_NEWEST_FIRST, on).apply()
+        _notesNewestFirst.value = on
+    }
+
     /** Opening a book puts it on Reading; reaching the last page puts it on Finished. */
     val autoShelves: Boolean get() = prefs.getBoolean(KEY_AUTO_SHELVES, true)
 
@@ -107,6 +116,7 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         const val KEY_SHELF_FILTER = "shelfFilter"
         const val KEY_LAYOUT = "layout"
         const val KEY_APP_THEME = "appTheme"
+        const val KEY_NOTES_NEWEST_FIRST = "notesNewestFirst"
         const val KEY_READER_BRIGHTNESS = "readerBrightness"
         const val KEY_AUTO_SHELVES = "autoShelves"
     }

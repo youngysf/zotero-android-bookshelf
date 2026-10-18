@@ -86,6 +86,8 @@ internal fun BookshelfNotebook(
     bottomPadding: Dp,
     onOpen: (BookshelfNote) -> Unit,
     onShare: (BookshelfNote) -> Unit,
+    newestFirst: Boolean,
+    onNewestFirst: (Boolean) -> Unit,
 ) {
     var notes by remember { mutableStateOf<List<BookshelfNote>?>(null) }
     LaunchedEffect(loadKey) { notes = load() }
@@ -167,6 +169,9 @@ internal fun BookshelfNotebook(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        item(key = "order") {
+            BookshelfNotesOrderRow(newestFirst = newestFirst, onChange = onNewestFirst)
+        }
         if (colors.size > 1 || tags.isNotEmpty()) {
             item(key = "filters") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -207,32 +212,39 @@ internal fun BookshelfNotebook(
                 )
             }
         }
-        for (group in books) {
-            val first = group.first()
-            item(key = "book-" + first.bookKey) {
-                Row(
-                    modifier = Modifier.padding(top = 18.dp, bottom = 2.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    Text(
-                        text = first.bookTitle.ifBlank { "Untitled" },
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 19.sp),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Text(
-                        "  ${group.size}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        if (newestFirst) {
+            // Newest first: one list across all books, each card naming its book.
+            items(filtered.sortedByDescending { it.dateAdded }, key = { "note-" + it.key }) { note ->
+                NoteCard(note = note, onOpen = { onOpen(note) }, onShare = { onShare(note) }, showBook = true)
             }
-            items(
-                group.sortedWith(compareBy({ it.attachmentKey }, { it.sortIndex })),
-                key = { "note-" + it.key },
-            ) { note ->
-                NoteCard(note = note, onOpen = { onOpen(note) }, onShare = { onShare(note) })
+        } else {
+            for (group in books) {
+                val first = group.first()
+                item(key = "book-" + first.bookKey) {
+                    Row(
+                        modifier = Modifier.padding(top = 18.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        Text(
+                            text = first.bookTitle.ifBlank { "Untitled" },
+                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Text(
+                            "  ${group.size}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                items(
+                    group.sortedWith(compareBy({ it.attachmentKey }, { it.sortIndex })),
+                    key = { "note-" + it.key },
+                ) { note ->
+                    NoteCard(note = note, onOpen = { onOpen(note) }, onShare = { onShare(note) })
+                }
             }
         }
     }
@@ -240,7 +252,7 @@ internal fun BookshelfNotebook(
 
 /** A highlight: its colour down the side, the quote, the comment and page. */
 @Composable
-internal fun NoteCard(note: BookshelfNote, onOpen: () -> Unit, onShare: (() -> Unit)?) {
+internal fun NoteCard(note: BookshelfNote, onOpen: () -> Unit, onShare: (() -> Unit)?, showBook: Boolean = false) {
     val accent = noteColor(note.color, MaterialTheme.colorScheme.primary)
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -262,6 +274,16 @@ internal fun NoteCard(note: BookshelfNote, onOpen: () -> Unit, onShare: (() -> U
                     .weight(1f)
                     .padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 10.dp),
             ) {
+                if (showBook) {
+                    Text(
+                        text = note.bookTitle.ifBlank { "Untitled" },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
                 if (note.text.isNotBlank()) {
                     Text(
                         text = note.text.trim(),
@@ -313,5 +335,29 @@ internal fun NoteCard(note: BookshelfNote, onOpen: () -> Unit, onShare: (() -> U
                 }
             }
         }
+    }
+}
+
+/** Page order or newest first, for lists of highlights. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BookshelfNotesOrderRow(newestFirst: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val colors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+        selectedLabelColor = MaterialTheme.colorScheme.primary,
+    )
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = !newestFirst,
+            onClick = { onChange(false) },
+            label = { Text("Page order") },
+            colors = colors,
+        )
+        FilterChip(
+            selected = newestFirst,
+            onClick = { onChange(true) },
+            label = { Text("Most recent") },
+            colors = colors,
+        )
     }
 }

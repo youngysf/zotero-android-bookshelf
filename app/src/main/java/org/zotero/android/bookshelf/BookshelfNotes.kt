@@ -27,6 +27,7 @@ data class BookshelfNote(
     val tags: List<String>,
     val sortIndex: String,
     val dateModified: Long,
+    val dateAdded: Long,
     val attachmentKey: String,
     /** The book: the attachment's parent item, or the attachment itself for a standalone PDF. */
     val bookKey: String,
@@ -66,6 +67,7 @@ private fun noteOf(annotation: RItem): BookshelfNote? {
         tags = annotation.tags?.mapNotNull { it.tag?.name } ?: emptyList(),
         sortIndex = annotation.field(FieldKeys.Item.Annotation.sortIndex),
         dateModified = annotation.dateModified.time,
+        dateAdded = annotation.dateAdded.time,
         attachmentKey = attachment.key,
         bookKey = book.key,
         bookTitle = book.displayTitle,

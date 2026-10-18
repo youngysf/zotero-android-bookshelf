@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
@@ -50,6 +51,8 @@ internal fun ReaderAnnotationsSidebar(
     annotationsViewModel: ReaderAnnotationsViewModel = hiltComposeViewModel(),
 ) {
     val annotationsViewState by annotationsViewModel.viewStates.observeAsState(ReaderAnnotationsViewState())
+    // Bookshelf: read so the list re-sorts when the order changes.
+    val newestFirst by viewModel.bookshelfNotesNewestFirst.collectAsState()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -64,6 +67,11 @@ internal fun ReaderAnnotationsSidebar(
                 ReaderSidebarSearchBar(
                     searchValue = viewState.annotationSearchTerm,
                     onSearch = viewModel::onAnnotationSearch,
+                )
+                org.zotero.android.bookshelf.BookshelfNotesOrderRow(
+                    newestFirst = newestFirst,
+                    onChange = viewModel::setBookshelfNotesNewestFirst,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp),
                 )
             }
             itemsIndexed(

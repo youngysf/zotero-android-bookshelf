@@ -1954,7 +1954,20 @@ class ReaderViewModel @Inject constructor(
         return this.annotations[key]
     }
 
+    /** Bookshelf: annotations newest first instead of in page order. */
+    val bookshelfNotesNewestFirst get() = bookshelfPreferences.notesNewestFirst
+
+    fun setBookshelfNotesNewestFirst(on: Boolean) {
+        bookshelfPreferences.setNotesNewestFirst(on)
+    }
+
     fun displayedSortedKeys(): List<String> {
+        val keys = bookshelfDisplayedKeys()
+        if (!bookshelfPreferences.notesNewestFirst.value) return keys
+        return keys.sortedByDescending { annotation(it)?.dateAdded?.time ?: 0L }
+    }
+
+    private fun bookshelfDisplayedKeys(): List<String> {
         if (!viewState.readingModeEnabled) {
             return viewState.sortedKeys
         }

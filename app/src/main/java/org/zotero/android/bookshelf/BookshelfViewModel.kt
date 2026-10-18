@@ -38,6 +38,8 @@ class BookshelfViewModel @Inject constructor(
     fun setPageTheme(theme: PageTheme) = preferences.setPageTheme(theme)
     val readerBrightness: StateFlow<Float> = preferences.readerBrightness
     fun setReaderBrightness(value: Float) = preferences.setReaderBrightness(value)
+    val notesNewestFirst: StateFlow<Boolean> = preferences.notesNewestFirst
+    fun setNotesNewestFirst(on: Boolean) = preferences.setNotesNewestFirst(on)
 
     suspend fun tintFor(attachment: Attachment?): Int? {
         return attachment?.let { covers.tintFor(it) }

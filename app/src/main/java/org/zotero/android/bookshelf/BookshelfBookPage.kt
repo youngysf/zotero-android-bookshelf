@@ -86,6 +86,8 @@ internal fun BookshelfBookPage(
     onShareNote: (BookshelfNote, String) -> Unit,
     onDetails: () -> Unit,
     onDismiss: () -> Unit,
+    newestFirst: Boolean,
+    onNewestFirst: (Boolean) -> Unit,
 ) {
     val info by produceState<BookshelfBookInfo?>(initialValue = null, data.key) { value = data.load() }
     val cover by produceState<File?>(initialValue = null, data.key) { value = data.coverFor(data.attachment) }
@@ -272,8 +274,14 @@ internal fun BookshelfBookPage(
                 val notes = info?.notes.orEmpty()
                 if (notes.isNotEmpty()) {
                     SectionLabel("Highlights and notes · ${notes.size}")
+                    BookshelfNotesOrderRow(
+                        newestFirst = newestFirst,
+                        onChange = onNewestFirst,
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
+                    val ordered = if (newestFirst) notes.sortedByDescending { it.dateAdded } else notes
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        for (note in notes) {
+                        for (note in ordered) {
                             NoteCard(
                                 note = note,
                                 onOpen = { onOpenNote(note) },

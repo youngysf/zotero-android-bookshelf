@@ -70,6 +70,7 @@ internal fun AllItemsScreen(
         val bookshelfSnapshot by bookshelfViewModel.snapshot.collectAsState()
         val pageCounts by bookshelfViewModel.pageCounts.collectAsState()
         val bookshelfLayout by bookshelfViewModel.layout.collectAsState()
+        val notesNewestFirst by bookshelfViewModel.notesNewestFirst.collectAsState()
         val context = androidx.compose.ui.platform.LocalContext.current
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         var bookshelfTab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(org.zotero.android.bookshelf.BookshelfTab.Library) }
@@ -267,6 +268,8 @@ internal fun AllItemsScreen(
                     loadKey = notebookReloads,
                     load = { viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.notes(it) } ?: emptyList() },
                     bottomPadding = bottomPadding,
+                    newestFirst = notesNewestFirst,
+                    onNewestFirst = bookshelfViewModel::setNotesNewestFirst,
                     onOpen = { note ->
                         if (!viewModel.bookshelfOpenAttachment(note.attachmentKey, note.parentKey, note.key)) {
                             android.widget.Toast.makeText(context, "Download this book first to open it here.", android.widget.Toast.LENGTH_SHORT).show()
@@ -499,6 +502,8 @@ internal fun AllItemsScreen(
                     viewModel.onAccessoryTapped(pageKey)
                 },
                 onDismiss = { bookPageKey = null },
+                newestFirst = notesNewestFirst,
+                onNewestFirst = bookshelfViewModel::setNotesNewestFirst,
             )
         }
 
