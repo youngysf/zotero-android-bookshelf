@@ -31,6 +31,8 @@ internal fun CollectionsScreen(
     navigateToLibraries: (String) -> Unit,
     navigateToCollectionEdit: () -> Unit,
     viewModel: CollectionsViewModel = hiltViewModel(),
+    showBookshelfNavBar: Boolean = false,
+    navigateToSettings: () -> Unit = {},
 ) {
     AppThemeM3 {
 
@@ -39,8 +41,10 @@ internal fun CollectionsScreen(
         val viewEffect by viewModel.viewEffects.observeAsState()
         val isTablet = layoutType.isTablet()
 
+        // Bookshelf: on phones Collections is a tab, so back returns to the
+        // library; other libraries are reached from the top bar.
         BackHandler(
-            enabled = viewState.backHandlerEnabled,
+            enabled = viewState.backHandlerEnabled && !showBookshelfNavBar,
             onBack = {
                 viewModel.navigateToLibraries()
             })
@@ -79,6 +83,23 @@ internal fun CollectionsScreen(
                     navigateToLibraries = viewModel::navigateToLibraries,
                     onAdd = viewModel::onAdd,
                 )
+            },
+            bottomBar = {
+                if (showBookshelfNavBar) {
+                    org.zotero.android.bookshelf.BookshelfNavBar(
+                        selected = org.zotero.android.bookshelf.BookshelfTab.Collections,
+                        onSelect = { tab ->
+                            when (tab) {
+                                org.zotero.android.bookshelf.BookshelfTab.Collections -> Unit
+                                org.zotero.android.bookshelf.BookshelfTab.Settings -> navigateToSettings()
+                                else -> {
+                                    org.zotero.android.bookshelf.BookshelfTabRequest.set(tab)
+                                    onBack()
+                                }
+                            }
+                        },
+                    )
+                }
             },
         ) {
             BaseLceBox(

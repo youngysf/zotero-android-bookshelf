@@ -16,6 +16,20 @@ class BookshelfPreferences @Inject constructor(context: Context) {
     /** Library shows the cover grid (true) or Zotero's list (false). */
     val showCovers: StateFlow<Boolean> = _showCovers.asStateFlow()
 
+    private val _layout = MutableStateFlow(
+        LibraryLayout.entries.firstOrNull { it.name == prefs.getString(KEY_LAYOUT, null) }
+            ?: if (prefs.getBoolean(KEY_SHOW_COVERS, true)) LibraryLayout.Covers else LibraryLayout.List
+    )
+    /** How the library shows books: covers, spines on shelves, or Zotero's list. */
+    val layout: StateFlow<LibraryLayout> = _layout.asStateFlow()
+
+    fun setLayout(layout: LibraryLayout) {
+        prefs.edit().putString(KEY_LAYOUT, layout.name)
+            .putBoolean(KEY_SHOW_COVERS, layout != LibraryLayout.List).apply()
+        _layout.value = layout
+        _showCovers.value = layout != LibraryLayout.List
+    }
+
     private val _coverSize = MutableStateFlow(
         CoverSize.entries.firstOrNull { it.name == prefs.getString(KEY_COVER_SIZE, null) }
             ?: CoverSize.Medium
@@ -49,8 +63,7 @@ class BookshelfPreferences @Inject constructor(context: Context) {
     val autoShelves: Boolean get() = prefs.getBoolean(KEY_AUTO_SHELVES, true)
 
     fun setShowCovers(show: Boolean) {
-        prefs.edit().putBoolean(KEY_SHOW_COVERS, show).apply()
-        _showCovers.value = show
+        setLayout(if (show) LibraryLayout.Covers else LibraryLayout.List)
     }
 
     fun setCoverSize(size: CoverSize) {
@@ -63,8 +76,15 @@ class BookshelfPreferences @Inject constructor(context: Context) {
         const val KEY_COVER_SIZE = "coverSize"
         const val KEY_PAGE_THEME = "pageTheme"
         const val KEY_SHELF_FILTER = "shelfFilter"
+        const val KEY_LAYOUT = "layout"
         const val KEY_AUTO_SHELVES = "autoShelves"
     }
+}
+
+enum class LibraryLayout(val label: String) {
+    Covers("Covers"),
+    Spines("Spines"),
+    List("List"),
 }
 
 /** Smallest width of a cover in the grid; the grid fits as many columns as it can. */

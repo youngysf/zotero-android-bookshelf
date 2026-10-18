@@ -16,15 +16,32 @@ class BookshelfViewModel @Inject constructor(
     private val preferences: BookshelfPreferences,
     private val covers: BookshelfCovers,
     private val shelves: BookshelfShelves,
+    private val notes: BookshelfNotes,
     progress: BookshelfProgress,
 ) : ViewModel() {
     val showCovers: StateFlow<Boolean> = preferences.showCovers
+    val layout: StateFlow<LibraryLayout> = preferences.layout
     val coverSize: StateFlow<CoverSize> = preferences.coverSize
     val shelfFilter: StateFlow<Shelf?> = preferences.shelfFilter
     val snapshot: StateFlow<BookshelfSnapshot> = shelves.snapshot
     val pageCounts: StateFlow<Map<String, Int>> = progress.counts
 
     fun setShowCovers(show: Boolean) = preferences.setShowCovers(show)
+    fun setLayout(layout: LibraryLayout) = preferences.setLayout(layout)
+
+    suspend fun tintFor(attachment: Attachment?): Int? {
+        return attachment?.let { covers.tintFor(it) }
+    }
+
+    suspend fun notes(libraryId: LibraryIdentifier): List<BookshelfNote> = notes.all(libraryId)
+
+    suspend fun bookInfo(libraryId: LibraryIdentifier, key: String): BookshelfBookInfo? = notes.book(libraryId, key)
+
+    suspend fun tagNames(libraryId: LibraryIdentifier): List<String> = shelves.tagNames(libraryId)
+
+    fun addTag(libraryId: LibraryIdentifier, bookKeys: Collection<String>, name: String) {
+        viewModelScope.launch { shelves.addTag(libraryId, bookKeys, name) }
+    }
     fun setCoverSize(size: CoverSize) = preferences.setCoverSize(size)
     fun setShelfFilter(shelf: Shelf?) = preferences.setShelfFilter(shelf)
 

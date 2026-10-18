@@ -44,6 +44,8 @@ data class BookshelfSnapshot(
     val positions: Map<String, String> = emptyMap(),
     /** Book key → when it was last read (ms), for "Continue reading". */
     val lastRead: Map<String, Long> = emptyMap(),
+    /** Book key → when it was added (ms), for "Recently added". */
+    val added: Map<String, Long> = emptyMap(),
 )
 
 private class ReadBookshelfSnapshotDbRequest(
@@ -71,15 +73,15 @@ private class ReadBookshelfSnapshotDbRequest(
         }
 
         val lastRead = HashMap<String, Long>()
-        val read = database.where<RItem>()
+        val added = HashMap<String, Long>()
+        val books = database.where<RItem>()
             .baseItemPredicates(isTrash = false, libraryId = libraryId)
-            .and()
-            .isNotNull("effectiveLastRead")
             .findAll()
-        for (item in read) {
+        for (item in books) {
             item.effectiveLastRead?.let { lastRead[item.key] = it.time }
+            added[item.key] = item.dateAdded.time
         }
-        return BookshelfSnapshot(shelves, positions, lastRead)
+        return BookshelfSnapshot(shelves, positions, lastRead, added)
     }
 }
 
@@ -92,6 +94,22 @@ private class ReadItemTagsDbRequest(
     override fun process(database: Realm): List<Tag> {
         val item = database.where<RItem>().key(key, libraryId).findFirst() ?: return emptyList()
         return item.tags?.map { Tag(it) } ?: emptyList()
+    }
+}
+
+private class ReadTagNamesDbRequest(
+    private val libraryId: LibraryIdentifier,
+) : DbResponseRequest<List<String>> {
+    override val needsWrite: Boolean get() = false
+
+    override fun process(database: Realm): List<String> {
+        return database.where<org.zotero.android.database.objects.RTag>()
+            .library(libraryId)
+            .findAll()
+            .map { it.name }
+            .filter { it.isNotBlank() && Shelf.ofTag(it) == null }
+            .distinct()
+            .sortedBy { it.lowercase() }
     }
 }
 
@@ -149,5 +167,33 @@ class BookshelfShelves @Inject constructor(
         val shelves = current.shelves.toMutableMap()
         for (key in bookKeys) if (shelf == null) shelves.remove(key) else shelves[key] = shelf
         _snapshot.value = current.copy(shelves = shelves)
+    }
+
+    /** Tags in this library, for suggestions when tagging books (shelf tags left out). */
+    suspend fun tagNames(libraryId: LibraryIdentifier): List<String> = withContext(Dispatchers.IO) {
+        try {
+            dbWrapperMain.realmDbStorage.perform(ReadTagNamesDbRequest(libraryId))
+        } catch (e: Throwable) {
+            emptyList()
+        }
+    }
+
+    /** Adds a tag to several books at once, keeping their other tags. */
+    suspend fun addTag(libraryId: LibraryIdentifier, bookKeys: Collection<String>, name: String) {
+        val tag = name.trim()
+        if (tag.isEmpty()) return
+        withContext(Dispatchers.IO) {
+            for (key in bookKeys) {
+                try {
+                    val tags = dbWrapperMain.realmDbStorage.perform(ReadItemTagsDbRequest(key, libraryId))
+                    if (tags.any { it.name == tag }) continue
+                    dbWrapperMain.realmDbStorage.perform(
+                        EditTagsForItemDbRequest(key = key, libraryId = libraryId, tags = tags + Tag(name = tag, color = ""))
+                    )
+                } catch (e: Throwable) {
+                    Timber.w(e, "Bookshelf: couldn't tag $key")
+                }
+            }
+        }
     }
 }

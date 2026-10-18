@@ -1496,6 +1496,7 @@ class ReaderViewModel @Inject constructor(
                     annotationsJson = json,
                     page = page,
                     selectedAnnotationKey = viewState.selectedAnnotationKey
+                        ?: org.zotero.android.bookshelf.BookshelfReaderTarget.take(this@ReaderViewModel.key)
                 )
                 readerWebCallChainExecutor.loadDocument(
                     data = documentData,

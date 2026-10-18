@@ -59,6 +59,55 @@ class BookshelfCovers @Inject constructor(
         return cover
     }
 
+    private val tints = ConcurrentHashMap<String, Int>()
+
+    /**
+     * A muted colour taken from the book's cover (for spines and the book
+     * page), or null if there's no cover on this phone.
+     */
+    suspend fun tintFor(attachment: Attachment): Int? {
+        tints[attachment.key]?.let { return it }
+        val cover = coverFor(attachment) ?: return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 16 }
+                val bitmap = android.graphics.BitmapFactory.decodeFile(cover.absolutePath, options) ?: return@withContext null
+                val tint = try { coverTint(bitmap) } finally { bitmap.recycle() }
+                tints[attachment.key] = tint
+                tint
+            } catch (e: Throwable) {
+                null
+            }
+        }
+    }
+
+    /** The most colourful common colour of a small cover image, darkened to read as a spine. */
+    private fun coverTint(bitmap: Bitmap): Int {
+        val buckets = HashMap<Int, IntArray>()
+        val hsv = FloatArray(3)
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                val c = bitmap.getPixel(x, y)
+                Color.colorToHSV(c, hsv)
+                // Ignore near-white page and near-black text.
+                if (hsv[2] < 0.12f || (hsv[1] < 0.08f && hsv[2] > 0.85f)) continue
+                val key = ((hsv[0] / 30f).toInt() shl 4) or ((hsv[1] * 3).toInt() shl 2) or (hsv[2] * 3).toInt()
+                val b = buckets.getOrPut(key) { IntArray(4) }
+                b[0] += Color.red(c); b[1] += Color.green(c); b[2] += Color.blue(c); b[3]++
+            }
+        }
+        val best = buckets.values.maxByOrNull { b ->
+            val r = b[0] / b[3]; val g = b[1] / b[3]; val bl = b[2] / b[3]
+            Color.RGBToHSV(r, g, bl, hsv)
+            b[3] * (0.35f + hsv[1])
+        } ?: return Color.rgb(60, 62, 68)
+        val r = best[0] / best[3]; val g = best[1] / best[3]; val bl = best[2] / best[3]
+        Color.RGBToHSV(r, g, bl, hsv)
+        hsv[1] = hsv[1].coerceAtMost(0.55f)
+        hsv[2] = hsv[2].coerceIn(0.22f, 0.5f)
+        return Color.HSVToColor(hsv)
+    }
+
     /** Page count for progress bars, for covers that were made before counts were kept. */
     private suspend fun countPages(pdf: File, key: String) = withContext(renderDispatcher) {
         if (progress.hasCount(key)) return@withContext

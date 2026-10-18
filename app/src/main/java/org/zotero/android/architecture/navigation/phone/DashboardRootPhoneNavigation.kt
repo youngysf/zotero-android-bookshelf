@@ -113,6 +113,7 @@ internal fun DashboardRootPhoneNavigation(
                 navigation.toCollectionEditScreen()
             },
             isTablet = false,
+            navigateToSettings = { navigation.toSettingsScreen() },
         )
 
         librariesScreen(
@@ -157,7 +158,8 @@ internal fun DashboardRootPhoneNavigation(
                     readerEncodedFilePathParam = readerEncodedFilePathParam,
                 )
             },
-            isTablet = false
+            isTablet = false,
+            navigateToSettings = { navigation.toSettingsScreen() },
         )
         itemDetailsScreen(
             navigateToCreatorEdit = navigation::toCreatorEdit,

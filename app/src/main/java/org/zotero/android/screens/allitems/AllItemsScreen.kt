@@ -13,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
 import org.zotero.android.appupdate.MaybeShowAppUpdateBanner
 import org.zotero.android.architecture.ui.CustomLayoutSize
@@ -52,6 +54,7 @@ internal fun AllItemsScreen(
     navigateToCitationBibliographyExport:() -> Unit,
     onShowPdf: (String, String) -> Unit,
     onShowHtmlOrEpub: (String, String) -> Unit,
+    navigateToSettings: () -> Unit = {},
 ) {
     AppThemeM3 {
         val layoutType = CustomLayoutSize.calculateLayoutType()
@@ -65,12 +68,26 @@ internal fun AllItemsScreen(
         val shelfFilter by bookshelfViewModel.shelfFilter.collectAsState()
         val bookshelfSnapshot by bookshelfViewModel.snapshot.collectAsState()
         val pageCounts by bookshelfViewModel.pageCounts.collectAsState()
+        val bookshelfLayout by bookshelfViewModel.layout.collectAsState()
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        var bookshelfTab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(org.zotero.android.bookshelf.BookshelfTab.Library) }
+        var showViewSheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        var showTagFilterSheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        var tagDialogKeys by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Set<String>?>(null) }
+        var tagSuggestions by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<String>>(emptyList()) }
+        var bookPageKey by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
+        var notebookReloads by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
         val lazyGridState = rememberLazyGridState()
         // Shelves and reading positions: read again when the list changes and
         // when coming back to this screen (e.g. from the reader).
         var bookshelfResumes by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
         org.zotero.android.architecture.ui.ObserveLifecycleEvent { event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) bookshelfResumes++
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                bookshelfResumes++
+                notebookReloads++
+                org.zotero.android.bookshelf.BookshelfTabRequest.take()?.let { bookshelfTab = it }
+            }
         }
         LaunchedEffect(showCovers, viewState.itemCellModels.size, viewState.lce, bookshelfResumes, viewState.isRefreshing) {
             if (showCovers) viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.refresh(it) }
@@ -79,9 +96,11 @@ internal fun AllItemsScreen(
         val isTablet = layoutType.isTablet()
 
         if (!isTablet)  {
-            BackHandler(onBack = {
-                viewModel.navigateToCollections()
-            })
+            // Bookshelf: Library is the home tab, so back leaves the app from
+            // there; from Highlights it returns to Library.
+            BackHandler(enabled = bookshelfTab != org.zotero.android.bookshelf.BookshelfTab.Library) {
+                bookshelfTab = org.zotero.android.bookshelf.BookshelfTab.Library
+            }
         }
 
         LaunchedEffect(key1 = viewModel) {
@@ -179,26 +198,82 @@ internal fun AllItemsScreen(
                 }
             }
         }
-        val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+        val scrollBehavior = if (isTablet) {
+            TopAppBarDefaults.pinnedScrollBehavior()
+        } else {
+            TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        }
+        val onBookshelfTab: (org.zotero.android.bookshelf.BookshelfTab) -> Unit = { tab ->
+            when (tab) {
+                org.zotero.android.bookshelf.BookshelfTab.Library,
+                org.zotero.android.bookshelf.BookshelfTab.Highlights -> bookshelfTab = tab
+                org.zotero.android.bookshelf.BookshelfTab.Collections -> viewModel.navigateToCollections()
+                org.zotero.android.bookshelf.BookshelfTab.Settings -> navigateToSettings()
+            }
+        }
 
         CustomScaffoldM3(
             scrollBehavior = scrollBehavior,
             topBar = {
-                AllItemsTopBar(
-                    scrollBehavior = scrollBehavior,
-                    viewState = viewState,
-                    viewModel = viewModel,
-                    layoutType = layoutType,
-                )
+                if (isTablet || viewState.isEditing) {
+                    AllItemsTopBar(
+                        scrollBehavior = scrollBehavior,
+                        viewState = viewState,
+                        viewModel = viewModel,
+                        layoutType = layoutType,
+                    )
+                } else if (bookshelfTab == org.zotero.android.bookshelf.BookshelfTab.Highlights) {
+                    org.zotero.android.bookshelf.BookshelfNotebookTopBar(scrollBehavior = scrollBehavior)
+                } else {
+                    org.zotero.android.bookshelf.BookshelfLibraryTopBar(
+                        title = viewState.collectionName,
+                        searchTerm = viewState.searchTerm,
+                        scrollBehavior = scrollBehavior,
+                        onSearch = viewModel::onSearch,
+                        onView = { showViewSheet = true },
+                        onAdd = viewModel::onAdd,
+                        onSelect = viewModel::onSelect,
+                        onSync = viewModel::startSync,
+                    )
+                }
             },
             bottomBar = {
-                AllItemsBottomPanelNew(
-                    viewModel = viewModel,
-                    viewState = viewState,
-                )
+                if (isTablet) {
+                    AllItemsBottomPanelNew(
+                        viewModel = viewModel,
+                        viewState = viewState,
+                    )
+                } else if (!viewState.isEditing) {
+                    org.zotero.android.bookshelf.BookshelfNavBar(selected = bookshelfTab, onSelect = onBookshelfTab)
+                }
             },
-        ) {
-
+        ) { innerPadding ->
+            val bottomPadding = if (isTablet) {
+                androidx.compose.material3.BottomAppBarDefaults.FlexibleBottomAppBarHeight
+            } else if (viewState.isEditing) {
+                96.dp
+            } else {
+                innerPadding.calculateBottomPadding()
+            }
+            if (!isTablet && !viewState.isEditing && bookshelfTab == org.zotero.android.bookshelf.BookshelfTab.Highlights) {
+                org.zotero.android.bookshelf.BookshelfNotebook(
+                    loadKey = notebookReloads,
+                    load = { viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.notes(it) } ?: emptyList() },
+                    bottomPadding = bottomPadding,
+                    onOpen = { note ->
+                        if (!viewModel.bookshelfOpenAttachment(note.attachmentKey, note.parentKey, note.key)) {
+                            android.widget.Toast.makeText(context, "Download this book first to open it here.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onShare = { note ->
+                        scope.launch {
+                            val tint = bookshelfViewModel.tintFor(viewModel.bookshelfAttachment(note.bookKey))
+                            org.zotero.android.bookshelf.BookshelfQuoteCard.share(context, note.text, note.bookTitle, "", note.color, tint)
+                        }
+                    },
+                )
+                return@CustomScaffoldM3
+            }
             BaseLceBox(
                 modifier = Modifier.fillMaxSize(),
                 lce = viewState.lce,
@@ -209,32 +284,45 @@ internal fun AllItemsScreen(
                     )
                 },
                 loading = {
-                    CircularLoading()
+                    if (showCovers && !isTablet) {
+                        org.zotero.android.bookshelf.BookshelfLoadingGrid(coverSize)
+                    } else {
+                        CircularLoading()
+                    }
                 },
             ) {
                 if (showCovers) {
                     BookshelfGrid(
                         gridState = lazyGridState,
-                        itemCellModels = viewState.itemCellModels,
-                        coverSize = coverSize,
-                        shelfFilter = shelfFilter,
-                        snapshot = bookshelfSnapshot,
-                        pageCounts = pageCounts,
-                        showContinueReading = viewState.searchTerm.isNullOrBlank(),
-                        onShelfFilter = bookshelfViewModel::setShelfFilter,
-                        onSetShelf = { key, shelf ->
-                            viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.setShelf(it, listOf(key), shelf) }
-                        },
-                        isEditing = viewState.isEditing,
-                        isRefreshing = viewState.isRefreshing,
-                        isItemSelected = viewState::isSelected,
-                        getItemAccessory = viewState::getAccessoryForItem,
-                        attachmentFor = viewModel::bookshelfAttachment,
-                        coverFor = bookshelfViewModel::coverFor,
-                        onItemTapped = viewModel::onItemTapped,
-                        onItemLongTapped = viewModel::onItemLongTapped,
-                        onInfoTapped = viewModel::onAccessoryTapped,
-                        onStartSync = viewModel::startSync,
+                        data = org.zotero.android.bookshelf.BookshelfGridData(
+                            itemCellModels = viewState.itemCellModels,
+                            layout = bookshelfLayout,
+                            coverSize = coverSize,
+                            shelfFilter = shelfFilter,
+                            snapshot = bookshelfSnapshot,
+                            pageCounts = pageCounts,
+                            searchTerm = viewState.searchTerm,
+                            isEditing = viewState.isEditing,
+                            isRefreshing = viewState.isRefreshing,
+                            isItemSelected = viewState::isSelected,
+                            getItemAccessory = viewState::getAccessoryForItem,
+                            attachmentFor = viewModel::bookshelfAttachment,
+                            coverFor = bookshelfViewModel::coverFor,
+                            tintFor = bookshelfViewModel::tintFor,
+                        ),
+                        actions = org.zotero.android.bookshelf.BookshelfGridActions(
+                            onShelfFilter = bookshelfViewModel::setShelfFilter,
+                            onSetShelf = { key, shelf ->
+                                viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.setShelf(it, listOf(key), shelf) }
+                            },
+                            onItemTapped = viewModel::onItemTapped,
+                            onItemLongTapped = viewModel::onItemLongTapped,
+                            onBookPage = { key -> bookPageKey = key },
+                            onDetails = viewModel::onAccessoryTapped,
+                            onAdd = viewModel::onAdd,
+                            onStartSync = viewModel::startSync,
+                        ),
+                        bottomPadding = bottomPadding,
                     )
                 } else AllItemsTable(
                     lazyListState = lazyListState,
@@ -274,6 +362,29 @@ internal fun AllItemsScreen(
                     GeneratingCitationLoadingIndicator()
                 }
             }
+            if (!isTablet && viewState.isEditing) {
+                androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+                    BookshelfPhoneSelectionBar(
+                        viewModel = viewModel,
+                        viewState = viewState,
+                        onShelf = { shelf ->
+                            val keys = viewModel.bookshelfSelectedKeys()
+                            viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.setShelf(it, keys, shelf) }
+                            viewModel.onDone()
+                        },
+                        onTag = {
+                            val keys = viewModel.bookshelfSelectedKeys()
+                            if (keys.isNotEmpty()) {
+                                scope.launch {
+                                    tagSuggestions = viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.tagNames(it) } ?: emptyList()
+                                    tagDialogKeys = keys
+                                }
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
+            }
         }
         val bottomSheetTitle = safeStringResource(id = Strings.item_type)
         AllItemsAddBottomSheet(
@@ -285,6 +396,104 @@ internal fun AllItemsScreen(
             onClose = viewModel::onAddBottomSheetCollapse,
             showBottomSheet = viewState.shouldShowAddBottomSheet
         )
+
+        // Bookshelf: View sheet, tag filter, tagging, and the book page.
+        if (showViewSheet) {
+            org.zotero.android.bookshelf.BookshelfViewSheet(
+                layout = bookshelfLayout,
+                coverSize = coverSize,
+                sort = viewModel.bookshelfSortType(),
+                downloadedOnly = viewState.isDownloadsFilterEnabled(),
+                tagFilterCount = viewState.filters
+                    .filterIsInstance<org.zotero.android.screens.allitems.data.ItemsFilter.tags>()
+                    .sumOf { it.tags.size },
+                onLayout = bookshelfViewModel::setLayout,
+                onCoverSize = bookshelfViewModel::setCoverSize,
+                onSortField = { field ->
+                    org.greenrobot.eventbus.EventBus.getDefault().post(
+                        org.zotero.android.uicomponents.singlepicker.SinglePickerResult(
+                            field.titleStr,
+                            org.zotero.android.uicomponents.singlepicker.SinglePickerResult.CallPoint.AllItemsSortPicker,
+                        )
+                    )
+                },
+                onSortAscending = { ascending ->
+                    org.greenrobot.eventbus.EventBus.getDefault().post(
+                        org.zotero.android.screens.sortpicker.data.SortDirectionResult(ascending)
+                    )
+                },
+                onDownloadedOnly = viewModel::onDownloadedFilesTapped,
+                onTagFilter = {
+                    showViewSheet = false
+                    showTagFilterSheet = true
+                },
+                onDismiss = { showViewSheet = false },
+            )
+        }
+        if (showTagFilterSheet) {
+            org.zotero.android.bookshelf.BookshelfContentSheet(onDismiss = { showTagFilterSheet = false }) {
+                org.zotero.android.screens.filter.FilterScreenTablet(viewModel.bookshelfFilterArgs())
+            }
+        }
+        val tagKeys = tagDialogKeys
+        if (tagKeys != null) {
+            org.zotero.android.bookshelf.BookshelfTagDialog(
+                count = tagKeys.size,
+                suggestions = tagSuggestions,
+                onAdd = { name ->
+                    viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.addTag(it, tagKeys, name) }
+                    tagDialogKeys = null
+                    viewModel.onDone()
+                },
+                onDismiss = { tagDialogKeys = null },
+            )
+        }
+        val pageKey = bookPageKey
+        val pageCell = pageKey?.let { key -> viewState.itemCellModels.firstOrNull { it.key == key } }
+        if (pageKey != null && pageCell != null) {
+            val attachment = viewModel.bookshelfAttachment(pageKey)
+            org.zotero.android.bookshelf.BookshelfBookPage(
+                data = org.zotero.android.bookshelf.BookshelfBookPageData(
+                    key = pageKey,
+                    fallbackTitle = pageCell.title,
+                    attachment = attachment,
+                    shelf = bookshelfSnapshot.shelves[pageKey],
+                    progress = org.zotero.android.bookshelf.BookshelfProgress.fraction(
+                        attachment,
+                        attachment?.let { bookshelfSnapshot.positions[it.key] },
+                        pageCounts,
+                    ),
+                    pages = attachment?.let { pageCounts[it.key] },
+                    load = { viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.bookInfo(it, pageKey) } },
+                    coverFor = bookshelfViewModel::coverFor,
+                    tintFor = bookshelfViewModel::tintFor,
+                ),
+                onRead = {
+                    bookPageKey = null
+                    viewModel.onItemTapped(pageCell)
+                },
+                onSetShelf = { shelf ->
+                    viewModel.bookshelfLibraryId()?.let { bookshelfViewModel.setShelf(it, listOf(pageKey), shelf) }
+                },
+                onOpenNote = { note ->
+                    bookPageKey = null
+                    if (!viewModel.bookshelfOpenAttachment(note.attachmentKey, note.parentKey, note.key)) {
+                        android.widget.Toast.makeText(context, "Download this book first to open it here.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onShareNote = { note, authors ->
+                    scope.launch {
+                        val tint = bookshelfViewModel.tintFor(attachment)
+                        org.zotero.android.bookshelf.BookshelfQuoteCard.share(context, note.text, note.bookTitle, authors, note.color, tint)
+                    }
+                },
+                onDetails = {
+                    bookPageKey = null
+                    viewModel.onAccessoryTapped(pageKey)
+                },
+                onDismiss = { bookPageKey = null },
+            )
+        }
 
     }
 }

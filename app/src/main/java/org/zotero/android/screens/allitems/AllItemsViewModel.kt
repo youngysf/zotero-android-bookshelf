@@ -672,6 +672,53 @@ internal class AllItemsViewModel @Inject constructor(
         }
     }
 
+    /** Bookshelf: current sort, for the View sheet. */
+    fun bookshelfSortType(): org.zotero.android.screens.allitems.data.ItemsSortType = allItemsProcessor.getSortType()
+
+    /** Bookshelf: arguments for Zotero's tag filter, shown in a sheet. */
+    fun bookshelfFilterArgs(): org.zotero.android.screens.filter.data.FilterArgs = createShowFilterArgs()
+
+    fun bookshelfSelectedKeys(): Set<String> = viewState.selectedKeys ?: emptySet()
+
+    /** Bookshelf: whether this list is the trash (selection actions differ). */
+    fun bookshelfIsTrash(): Boolean = viewState.isCollectionTrash
+
+    /**
+     * Bookshelf: opens any downloaded attachment in this library (not only
+     * those in the current list), optionally at one of its highlights.
+     * Returns false if the file isn't on this phone.
+     */
+    fun bookshelfOpenAttachment(attachmentKey: String, parentKey: String?, annotationKey: String?): Boolean {
+        val item = try {
+            dbWrapperMain.realmDbStorage.perform(ReadItemDbRequest(libraryId = library.identifier, key = attachmentKey))
+        } catch (e: Throwable) {
+            return false
+        }
+        val attachment = org.zotero.android.sync.AttachmentCreator.attachment(
+            item = item,
+            fileStorage = fileStore,
+            isForceRemote = false,
+            urlDetector = null,
+            defaults = defaults,
+        ) ?: return false
+        val kind = attachment.type as? org.zotero.android.database.objects.Attachment.Kind.file ?: return false
+        if (kind.location != org.zotero.android.database.objects.Attachment.FileLocation.local
+            && kind.location != org.zotero.android.database.objects.Attachment.FileLocation.localAndChangedRemotely
+        ) {
+            // In the current list Zotero can download it first.
+            val listKey = parentKey ?: attachmentKey
+            if (allItemsProcessor.getItemAccessoryByKey(listKey) != null) {
+                if (annotationKey != null) org.zotero.android.bookshelf.BookshelfReaderTarget.set(attachmentKey, annotationKey)
+                allItemsProcessor.open(attachment = attachment, parentKey = parentKey)
+                return true
+            }
+            return false
+        }
+        if (annotationKey != null) org.zotero.android.bookshelf.BookshelfReaderTarget.set(attachmentKey, annotationKey)
+        show(attachment = attachment, parentKey = parentKey, library = library)
+        return true
+    }
+
     /** Bookshelf: the library being shown, for shelves and progress. */
     fun bookshelfLibraryId(): org.zotero.android.sync.LibraryIdentifier? {
         return library.identifier

@@ -108,7 +108,7 @@ internal fun AllItemsEditingBottomPanel(
         })
 }
 
-private fun editingMultipleItemsSelectedActions(
+internal fun editingMultipleItemsSelectedActions(
     viewModel: AllItemsViewModel,
     viewState: AllItemsViewState,
     errorRedColor: Color
@@ -219,7 +219,7 @@ private fun downloadAndRemoveAttachmentBlock(
 }
 
 
-private fun editingSingleItemSelectedActions(
+internal fun editingSingleItemSelectedActions(
     viewModel: AllItemsViewModel,
     viewState: AllItemsViewState,
     errorRedColor: Color,

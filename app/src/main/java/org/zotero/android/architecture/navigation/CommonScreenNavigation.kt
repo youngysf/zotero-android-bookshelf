@@ -47,7 +47,8 @@ fun NavGraphBuilder.allItemsScreen(
     onPickFile: () -> Unit,
     onShowPdf: (String, String) -> Unit,
     onShowHtmlOrEpub: (String, String) -> Unit,
-    isTablet: Boolean
+    isTablet: Boolean,
+    navigateToSettings: () -> Unit = {},
 ) {
     composable(
         route = CommonScreenDestinations.ALL_ITEMS,
@@ -112,7 +113,8 @@ fun NavGraphBuilder.allItemsScreen(
             navigateToScanBarcode = navigateToScanBarcode,
             navigateToRetrieveMetadata = navigateToRetrieveMetadata,
             navigateToSingleCitation = navigateToSingleCitation,
-            navigateToCitationBibliographyExport = navigateToCitationBibliographyExport
+            navigateToCitationBibliographyExport = navigateToCitationBibliographyExport,
+            navigateToSettings = navigateToSettings,
         )
     }
 }
@@ -247,6 +249,7 @@ fun NavGraphBuilder.collectionsScreen(
     navigateToCollectionEdit: () -> Unit,
     navigateToLibraries: (String) -> Unit,
     isTablet: Boolean,
+    navigateToSettings: () -> Unit = {},
 ) {
     composable(
         route = "${CommonScreenDestinations.COLLECTIONS_SCREEN}/{$ARG_COLLECTIONS_SCREEN}",
@@ -290,6 +293,8 @@ fun NavGraphBuilder.collectionsScreen(
             navigateToAllItems = navigateToAllItems,
             navigateToLibraries = navigateToLibraries,
             navigateToCollectionEdit = navigateToCollectionEdit,
+            showBookshelfNavBar = !isTablet,
+            navigateToSettings = navigateToSettings,
         )
     }
 }
