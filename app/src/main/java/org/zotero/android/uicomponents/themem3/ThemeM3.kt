@@ -12,6 +12,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.dp
 import org.zotero.android.uicomponents.CustomUriHandler
 
 private val lightScheme = lightColorScheme(
@@ -254,6 +255,15 @@ val unspecified_scheme = ColorFamily(
     Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified
 )
 
+/** Softer, rounder corners for the quiet minimal look. */
+val AppShapesM3 = androidx.compose.material3.Shapes(
+    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+    small = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+    large = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+)
+
 @Composable
 fun AppThemeM3(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -274,6 +284,7 @@ fun AppThemeM3(
   MaterialTheme(
     colorScheme = colorScheme,
     typography = AppTypographyM3,
+    shapes = AppShapesM3,
     content =  {
         CompositionLocalProvider(
             LocalUriHandler provides CustomUriHandler(LocalContext.current),
