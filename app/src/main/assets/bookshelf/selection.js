@@ -246,16 +246,104 @@
     var a = sel.a, h = sel.h;
     if (a.p === h.p) {
       pv._selectionRanges = [{ anchor: true, head: true, position: { pageIndex: a.p, rects: [] }, anchorOffset: a.o, headOffset: h.o }];
+      try { pv._syncSelectionAfterSemanticChange(); } catch (e) { console.log('bookshelf selection', e); }
     }
-    else {
+    else if (!applyAcrossPages(a, h)) {
       pv._selectionRanges = [
         { anchor: true, position: { pageIndex: a.p, rects: [] }, anchorOffset: a.o },
         { head: true, position: { pageIndex: h.p, rects: [] }, headOffset: h.o }
       ];
+      try { pv._syncSelectionAfterSemanticChange(); } catch (e) { console.log('bookshelf selection', e); }
     }
-    try { pv._syncSelectionAfterSemanticChange(); } catch (e) { console.log('bookshelf selection', e); }
     pv._render();
     startLoop();
+  }
+
+  // Zotero's selection of one stretch of one page, from caret offset to offset.
+  function pageRange(p, from, to) {
+    pv._selectionRanges = [{ anchor: true, head: true, position: { pageIndex: p, rects: [] }, anchorOffset: from, headOffset: to }];
+    pv._syncSelectionAfterSemanticChange();
+    return pv._selectionRanges.filter(function (r) { return r.position && r.position.pageIndex === p && !r.collapsed; });
+  }
+
+  // A selection running onto the next page leaves out the running header and
+  // page number in between: the start page stops at the end of its body
+  // text, the end page starts at the beginning of its body text.
+  function applyAcrossPages(a, h) {
+    try {
+      var o = ordered();
+      var pieces = [];
+      for (var p = o.s.p; p <= o.e.p; p++) {
+        var chars = charsOf(p);
+        if (!chars) return false;
+        var body = bodyBounds(chars);
+        var from = p === o.s.p ? o.s.o : body.start;
+        var to = p === o.e.p ? o.e.o : body.end;
+        // If the selection starts or ends in a header or footer itself, keep it.
+        if (to <= from) {
+          if (p === o.s.p) to = chars.length;
+          else from = 0;
+        }
+        if (to > from) pieces = pieces.concat(pageRange(p, from, to));
+      }
+      if (!pieces.length) return false;
+      pieces.forEach(function (r) {
+        delete r.anchor;
+        delete r.head;
+      });
+      var anchorPiece = pieces.filter(function (r) { return r.position.pageIndex === a.p; })[0];
+      var headPiece = pieces.filter(function (r) { return r.position.pageIndex === h.p; }).slice(-1)[0];
+      if (anchorPiece) { anchorPiece.anchor = true; anchorPiece.anchorOffset = a.o; }
+      if (headPiece) { headPiece.head = true; headPiece.headOffset = h.o; }
+      pv._setSelectionRanges(pieces);
+      return true;
+    } catch (e) {
+      console.log('bookshelf selection across pages', e);
+      return false;
+    }
+  }
+
+  var boundsCache = new WeakMap();
+
+  // Where a page's body text starts and ends (caret offsets), leaving out a
+  // running header at the top and a page number or footer at the bottom:
+  // short lines set apart from the text by a wider gap than between lines.
+  function bodyBounds(chars) {
+    var cached = boundsCache.get(chars);
+    if (cached) return cached;
+    var lines = linesOf(chars);
+    var result = { start: 0, end: chars.length };
+    if (lines.length >= 4) {
+      var byY = lines.slice().sort(function (x, y) { return y.rect[3] - x.rect[3]; });
+      var gaps = [], widths = [];
+      for (var i = 1; i < byY.length; i++) gaps.push(Math.max(0, byY[i - 1].rect[1] - byY[i].rect[3]));
+      byY.forEach(function (l) { widths.push(l.rect[2] - l.rect[0]); });
+      var median = function (v) { var w = v.slice().sort(function (x, y) { return x - y; }); return w[Math.floor(w.length / 2)] || 0; };
+      var gap = median(gaps), width = median(widths);
+      var textOf = function (l) { var t = ''; for (var j = l.start; j <= l.end; j++) t += chars[j].c || ''; return t.trim(); };
+      var marginal = function (l, gapToBody) {
+        var t = textOf(l);
+        var short = (l.rect[2] - l.rect[0]) < width * 0.75;
+        var number = /^[\divxlcdmIVXLCDM\s.\-–—|]+$/.test(t);
+        return gapToBody > gap * 1.6 + 1 && (short || number);
+      };
+      var marked = [];
+      // Up to two lines at the top (a header, and a page number above or below it).
+      for (var k = 0; k < 2 && k < byY.length - 3; k++) {
+        if (marginal(byY[k], byY[k].rect[1] - byY[k + 1].rect[3])) marked.push(byY[k]);
+        else break;
+      }
+      for (var m = byY.length - 1; m > byY.length - 3 && m > 2; m--) {
+        if (marginal(byY[m], byY[m - 1].rect[1] - byY[m].rect[3])) marked.push(byY[m]);
+        else break;
+      }
+      var body = lines.filter(function (l) { return marked.indexOf(l) < 0; });
+      if (body.length) {
+        result = { start: body[0].start, end: body[body.length - 1].end + 1 };
+      }
+    }
+    boundsCache.set(chars, result);
+    return result;
   }
 
   function clear(notify) {
