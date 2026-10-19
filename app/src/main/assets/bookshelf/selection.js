@@ -44,6 +44,15 @@
     '.bs-menu.dark{background:#2b2d31;color:#f1f1f3;box-shadow:0 2px 10px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);}',
     '.bs-menu button{all:unset;padding:0 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;}',
     '.bs-menu button:active{background:rgba(127,127,127,.18);}',
+    '.bs-menu button.bs-color{padding:0 4px 0 12px;display:flex;align-items:center;}',
+    '.bs-dot{display:inline-block;width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.18);}',
+    '.bs-palette{display:none;align-items:center;gap:10px;padding:0 10px;}',
+    '.bs-palette button{padding:0;display:flex;}',
+    '.bs-palette .bs-dot{width:26px;height:26px;}',
+    '.bs-palette .bs-dot.on{box-shadow:0 0 0 2.5px var(--bs-ring,#fff),0 0 0 4.5px currentColor;}',
+    '.bs-menu.dark{--bs-ring:#2b2d31;}',
+    '.bs-menu.picking > button{display:none;}',
+    '.bs-menu.picking .bs-palette{display:flex;}',
     '.bs-loupe{position:fixed;display:none;width:' + LOUPE_W + 'px;height:' + LOUPE_H + 'px;border-radius:14px;',
     '  box-shadow:0 3px 12px rgba(0,0,0,.28),0 0 0 .5px rgba(0,0,0,.12);pointer-events:none;background:#fff;}'
   ].join('\n');
@@ -57,12 +66,39 @@
   endPin.className = 'bs-pin end';
   var menu = document.createElement('div');
   menu.className = 'bs-menu';
+  // The menu's colour (yellow unless changed here), used for Highlight and
+  // Underline. Tap the dot to pick another; picking one highlights with it.
+  var COLORS = ['#ffd400', '#ff6666', '#5fb236', '#2ea8e5', '#a28ae5', '#e56eee', '#f19837', '#aaaaaa'];
+  var menuColor = window.__bookshelfHighlightColor || '#ffd400';
+  var colorBtn = document.createElement('button');
+  colorBtn.className = 'bs-color';
+  colorBtn.dataset.action = 'color';
+  colorBtn.setAttribute('aria-label', 'Highlight colour');
+  var colorDot = document.createElement('span');
+  colorDot.className = 'bs-dot';
+  colorDot.style.background = menuColor;
+  colorBtn.appendChild(colorDot);
+  menu.appendChild(colorBtn);
   [['highlight', 'Highlight'], ['underline', 'Underline'], ['copy', 'Copy']].forEach(function (b) {
     var btn = document.createElement('button');
     btn.textContent = b[1];
     btn.dataset.action = b[0];
     menu.appendChild(btn);
   });
+  var palette = document.createElement('div');
+  palette.className = 'bs-palette';
+  COLORS.forEach(function (c) {
+    var b = document.createElement('button');
+    b.dataset.action = 'pick';
+    b.dataset.color = c;
+    var d = document.createElement('span');
+    d.className = 'bs-dot' + (c === menuColor ? ' on' : '');
+    d.style.background = c;
+    d.style.color = c;
+    b.appendChild(d);
+    palette.appendChild(b);
+  });
+  menu.appendChild(palette);
   ui.appendChild(startPin);
   ui.appendChild(endPin);
   ui.appendChild(menu);
@@ -369,6 +405,7 @@
   // ---------------------------------------------------------------- pins and menu
 
   function hideUI() {
+    menu.classList.remove('picking');
     loupe.style.display = 'none';
     startPin.style.display = 'none';
     endPin.style.display = 'none';
@@ -602,9 +639,24 @@
     if (!btn || !sel) return;
     var action = btn.dataset.action;
     var bridge = window.BookshelfSelection;
+    if (action === 'color') {
+      menu.classList.toggle('picking');
+      return;
+    }
+    if (action === 'pick') {
+      menuColor = btn.dataset.color;
+      colorDot.style.background = menuColor;
+      palette.querySelectorAll('.bs-dot').forEach(function (d) {
+        d.classList.toggle('on', d.parentNode.dataset.color === menuColor);
+      });
+      action = 'highlight';
+    }
+    menu.classList.remove('picking');
     hideUI();
     menuHiddenUntil = Infinity;
-    if (bridge && bridge[action]) bridge[action]();
+    if (action === 'highlight' && bridge && bridge.highlightColor) bridge.highlightColor(menuColor);
+    else if (action === 'underline' && bridge && bridge.underlineColor) bridge.underlineColor(menuColor);
+    else if (bridge && bridge[action]) bridge[action]();
     // Highlight/underline: the app saves from the selection it was sent, then
     // deselects (window._view.selectAnnotations([])), which clears this too.
     // Copy, or an app that doesn't answer: clear shortly.

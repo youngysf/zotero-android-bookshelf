@@ -5,4 +5,6 @@ interface ReaderSelectionActionModeDelegate {
     fun onHighlight()
     fun onUnderline()
     fun onCopy(): Boolean
+    fun onHighlightColor(color: String) = onHighlight()
+    fun onUnderlineColor(color: String) = onUnderline()
 }

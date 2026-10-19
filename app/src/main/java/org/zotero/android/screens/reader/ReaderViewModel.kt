@@ -435,6 +435,21 @@ class ReaderViewModel @Inject constructor(
             }
 
             override fun onCopy(): Boolean = copySelectedTextToClipboard()
+
+            // Bookshelf: the selection menu's own colour (yellow unless changed there).
+            override fun onHighlightColor(color: String) {
+                viewModelScope.launch {
+                    saveAnnotationFromSelection(AnnotationType.highlight, color)
+                    readerWebCallChainExecutor.deselectText()
+                }
+            }
+
+            override fun onUnderlineColor(color: String) {
+                viewModelScope.launch {
+                    saveAnnotationFromSelection(AnnotationType.underline, color)
+                    readerWebCallChainExecutor.deselectText()
+                }
+            }
         }
         readerWebCallChainExecutor.start(webView = webView, file = this.readerFile)
     }
@@ -698,10 +713,10 @@ class ReaderViewModel @Inject constructor(
     }
 
 
-    private suspend fun saveAnnotationFromSelection(type: AnnotationType) {
+    private suspend fun saveAnnotationFromSelection(type: AnnotationType, colorOverride: String? = null) {
         val textParams =
             this.selectedTextParams?.get("annotation")?.asJsonObject ?: return
-        val params = params(textParams, type) ?: return
+        val params = params(textParams, type, colorOverride) ?: return
 
         val annotations = if (viewState.fileType == ReaderFileType.PDF) {
             parsePdfJson(
@@ -735,8 +750,8 @@ class ReaderViewModel @Inject constructor(
     }
 
 
-    private fun params(textParams: JsonObject, type: AnnotationType): JsonObject? {
-        val color: String
+    private fun params(textParams: JsonObject, type: AnnotationType, colorOverride: String? = null): JsonObject? {
+        var color: String
         when(type) {
             AnnotationType.highlight -> {
                 color = viewState.toolColors[ReaderAnnotationTool.highlight] ?: defaults.getHighlightColorHex()
@@ -749,6 +764,7 @@ class ReaderViewModel @Inject constructor(
             }
         }
 
+        if (colorOverride != null) color = colorOverride
         val date = Date()
         val params = textParams
         params.addProperty("id",KeyGenerator.newKey())

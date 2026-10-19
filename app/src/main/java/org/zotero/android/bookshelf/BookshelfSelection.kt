@@ -14,8 +14,28 @@ import javax.inject.Singleton
  */
 @Singleton
 class BookshelfSelection @Inject constructor(private val context: Context) {
-    val script: String by lazy {
+    private val source: String by lazy {
         context.assets.open("bookshelf/selection.js").bufferedReader().use { it.readText() }
+    }
+
+    /** The script, told the selection menu's current colour. */
+    val script: String
+        get() {
+            val color = menuColor(context).filter { it == '#' || it.isLetterOrDigit() }
+            return "window.__bookshelfHighlightColor='$color';" + source
+        }
+
+    companion object {
+        const val DEFAULT_COLOR = "#ffd400"
+
+        fun menuColor(context: Context): String =
+            context.getSharedPreferences("bookshelf", Context.MODE_PRIVATE)
+                .getString("selectionMenuColor", DEFAULT_COLOR) ?: DEFAULT_COLOR
+
+        fun setMenuColor(context: Context, color: String) {
+            context.getSharedPreferences("bookshelf", Context.MODE_PRIVATE)
+                .edit().putString("selectionMenuColor", color).apply()
+        }
     }
 }
 
@@ -30,6 +50,18 @@ class BookshelfSelectionBridge(
     @JavascriptInterface
     fun highlight() {
         view.post { delegate()?.onHighlight() }
+    }
+
+    @JavascriptInterface
+    fun highlightColor(color: String) {
+        BookshelfSelection.setMenuColor(view.context, color)
+        view.post { delegate()?.onHighlightColor(color) }
+    }
+
+    @JavascriptInterface
+    fun underlineColor(color: String) {
+        BookshelfSelection.setMenuColor(view.context, color)
+        view.post { delegate()?.onUnderlineColor(color) }
     }
 
     @JavascriptInterface
