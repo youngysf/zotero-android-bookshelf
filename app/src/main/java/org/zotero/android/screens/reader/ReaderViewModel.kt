@@ -2263,6 +2263,39 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    // Bookshelf: selecting several annotations in the sidebar to delete them.
+    val bookshelfAnnotationSelection = kotlinx.coroutines.flow.MutableStateFlow<Set<String>?>(null)
+
+    fun bookshelfCanEditAnnotations(): Boolean = this.library.metadataEditable
+
+    fun bookshelfStartAnnotationSelection() {
+        bookshelfAnnotationSelection.value = emptySet()
+    }
+
+    fun bookshelfEndAnnotationSelection() {
+        bookshelfAnnotationSelection.value = null
+    }
+
+    fun bookshelfToggleAnnotation(key: String) {
+        val current = bookshelfAnnotationSelection.value ?: return
+        bookshelfAnnotationSelection.value = if (key in current) current - key else current + key
+    }
+
+    fun bookshelfSelectAllAnnotations() {
+        val current = bookshelfAnnotationSelection.value ?: return
+        val all = displayedSortedKeys().toSet()
+        bookshelfAnnotationSelection.value = if (current.containsAll(all)) emptySet() else all
+    }
+
+    fun bookshelfDeleteSelectedAnnotations() {
+        val keys = bookshelfAnnotationSelection.value?.toList() ?: return
+        bookshelfAnnotationSelection.value = null
+        if (keys.contains(viewState.selectedAnnotationKey)) {
+            updateState { copy(selectedAnnotationKey = null) }
+        }
+        remove(keys)
+    }
+
     private fun removeAnnotation(key: String) {
         //TODO hide popover
         remove(listOf(key))

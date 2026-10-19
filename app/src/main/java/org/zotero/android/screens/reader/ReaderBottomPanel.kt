@@ -73,5 +73,17 @@ internal fun BoxScope.ReaderBottomPanel(
 
         }
 
+        // Bookshelf: select several annotations to delete them together.
+        if (viewModel.bookshelfCanEditAnnotations()) {
+            androidx.compose.material3.TextButton(
+                onClick = viewModel::bookshelfStartAnnotationSelection,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp),
+            ) {
+                Text("Select")
+            }
+        }
+
     }
 }

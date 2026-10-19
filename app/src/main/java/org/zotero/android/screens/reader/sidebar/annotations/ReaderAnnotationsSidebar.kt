@@ -2,6 +2,7 @@ package org.zotero.android.screens.reader.sidebar.annotations
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,7 @@ internal fun ReaderAnnotationsSidebar(
     val annotationsViewState by annotationsViewModel.viewStates.observeAsState(ReaderAnnotationsViewState())
     // Bookshelf: read so the list re-sorts when the order changes.
     val newestFirst by viewModel.bookshelfNotesNewestFirst.collectAsState()
+    val bookshelfSelection by viewModel.bookshelfAnnotationSelection.collectAsState()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -96,88 +98,116 @@ internal fun ReaderAnnotationsSidebar(
                     )
                 }
 
-                Column(
-                    modifier = rowModifier
-                        .safeClickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { viewModel.selectAnnotation(key) },
-                        )
-                ) {
-                    val annotationColor =
-                        Color(annotation.displayColor.toColorInt())
-
-                    ReaderAnnotationsSidebarHeaderSection(
-                        annotation = annotation,
-                        annotationColor = annotationColor,
-                        viewState = viewState,
-                        viewModel = viewModel,
+                // Bookshelf: while selecting, a tap toggles the card instead.
+                val bookshelfPicked = bookshelfSelection?.contains(key) == true
+                if (bookshelfPicked) {
+                    rowModifier = rowModifier.border(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = roundedCornerShape
                     )
-                    ReaderSidebarDivider()
+                }
+                Box(modifier = rowModifier) {
+                    Column(
+                        modifier = Modifier
+                            .safeClickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { viewModel.selectAnnotation(key) },
+                            )
+                    ) {
+                        val annotationColor =
+                            Color(annotation.displayColor.toColorInt())
 
-                    val cachedBitmap = annotationsViewState.annotationsBitmapCache[key]
-                    val hasBitmapPreview = annotation.type == AnnotationType.image ||
-                            annotation.type == AnnotationType.ink ||
-                            annotation.type == AnnotationType.text
-                    if (hasBitmapPreview && cachedBitmap == null) {
-                        LaunchedEffect(key) {
-                            annotationsViewModel.requestAnnotationImage(key)
+                        ReaderAnnotationsSidebarHeaderSection(
+                            annotation = annotation,
+                            annotationColor = annotationColor,
+                            viewState = viewState,
+                            viewModel = viewModel,
+                        )
+                        ReaderSidebarDivider()
+
+                        val cachedBitmap = annotationsViewState.annotationsBitmapCache[key]
+                        val hasBitmapPreview = annotation.type == AnnotationType.image ||
+                                annotation.type == AnnotationType.ink ||
+                                annotation.type == AnnotationType.text
+                        if (hasBitmapPreview && cachedBitmap == null) {
+                            LaunchedEffect(key) {
+                                annotationsViewModel.requestAnnotationImage(key)
+                            }
+                        }
+                        when (annotation.type) {
+                            AnnotationType.note -> {
+                                ReaderAnnotationsSidebarNoteRow(
+                                    annotation = annotation,
+                                    viewModel = viewModel,
+                                    viewState = viewState,
+                                )
+                            }
+
+                            AnnotationType.highlight -> {
+                                ReaderAnnotationsSidebarHighlightRow(
+                                    annotation = annotation,
+                                    annotationColor = annotationColor,
+                                    viewModel = viewModel,
+                                    viewState = viewState,
+                                )
+                            }
+
+                            AnnotationType.underline -> {
+                                ReaderAnnotationsSidebarUnderlineRow(
+                                    annotation = annotation,
+                                    annotationColor = annotationColor,
+                                    viewModel = viewModel,
+                                    viewState = viewState,
+                                )
+                            }
+
+                            AnnotationType.image -> {
+                                ReaderAnnotationsSidebarImageRow(
+                                    annotation = annotation,
+                                    viewModel = viewModel,
+                                    viewState = viewState,
+                                    annotationMaxSideSize = annotationMaxSideSize,
+                                    cachedBitmap = cachedBitmap,
+                                )
+                            }
+                            AnnotationType.ink -> {
+                                ReaderAnnotationsSidebarInkRow(
+                                    annotation = annotation,
+                                    viewModel = viewModel,
+                                    viewState = viewState,
+                                    annotationMaxSideSize = annotationMaxSideSize,
+                                    cachedBitmap = cachedBitmap,
+                                )
+                            }
+                            AnnotationType.text -> {
+                                ReaderAnnotationsSidebarFreeTextRow(
+                                    annotation = annotation,
+                                    viewModel = viewModel,
+                                    viewState = viewState,
+                                    annotationMaxSideSize = annotationMaxSideSize,
+                                    cachedBitmap = cachedBitmap,
+                                )
+                            }
                         }
                     }
-                    when (annotation.type) {
-                        AnnotationType.note -> {
-                            ReaderAnnotationsSidebarNoteRow(
-                                annotation = annotation,
-                                viewModel = viewModel,
-                                viewState = viewState,
-                            )
-                        }
-
-                        AnnotationType.highlight -> {
-                            ReaderAnnotationsSidebarHighlightRow(
-                                annotation = annotation,
-                                annotationColor = annotationColor,
-                                viewModel = viewModel,
-                                viewState = viewState,
-                            )
-                        }
-
-                        AnnotationType.underline -> {
-                            ReaderAnnotationsSidebarUnderlineRow(
-                                annotation = annotation,
-                                annotationColor = annotationColor,
-                                viewModel = viewModel,
-                                viewState = viewState,
-                            )
-                        }
-
-                        AnnotationType.image -> {
-                            ReaderAnnotationsSidebarImageRow(
-                                annotation = annotation,
-                                viewModel = viewModel,
-                                viewState = viewState,
-                                annotationMaxSideSize = annotationMaxSideSize,
-                                cachedBitmap = cachedBitmap,
-                            )
-                        }
-                        AnnotationType.ink -> {
-                            ReaderAnnotationsSidebarInkRow(
-                                annotation = annotation,
-                                viewModel = viewModel,
-                                viewState = viewState,
-                                annotationMaxSideSize = annotationMaxSideSize,
-                                cachedBitmap = cachedBitmap,
-                            )
-                        }
-                        AnnotationType.text -> {
-                            ReaderAnnotationsSidebarFreeTextRow(
-                                annotation = annotation,
-                                viewModel = viewModel,
-                                viewState = viewState,
-                                annotationMaxSideSize = annotationMaxSideSize,
-                                cachedBitmap = cachedBitmap,
-                            )
-                        }
+                    if (bookshelfSelection != null) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(
+                                    if (bookshelfPicked) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                    else Color.Transparent
+                                )
+                                .clickable { viewModel.bookshelfToggleAnnotation(key) },
+                        )
+                        org.zotero.android.bookshelf.BookshelfCheckMark(
+                            checked = bookshelfPicked,
+                            modifier = Modifier
+                                .align(androidx.compose.ui.Alignment.TopEnd)
+                                .padding(10.dp),
+                        )
                     }
                 }
             }
@@ -185,9 +215,19 @@ internal fun ReaderAnnotationsSidebar(
                 Spacer(modifier = Modifier.height(48.dp))
             }
         }
-        ReaderBottomPanel(
-            viewModel = viewModel,
-            viewState = viewState
-        )
+        if (bookshelfSelection != null) {
+            org.zotero.android.bookshelf.BookshelfAnnotationSelectionBar(
+                count = bookshelfSelection?.size ?: 0,
+                onCancel = viewModel::bookshelfEndAnnotationSelection,
+                onSelectAll = viewModel::bookshelfSelectAllAnnotations,
+                onDelete = viewModel::bookshelfDeleteSelectedAnnotations,
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+            )
+        } else {
+            ReaderBottomPanel(
+                viewModel = viewModel,
+                viewState = viewState
+            )
+        }
     }
 }
