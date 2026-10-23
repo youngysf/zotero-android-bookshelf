@@ -136,6 +136,17 @@ internal fun ReaderTopBar(
             }
 
             Spacer(modifier = Modifier.weight(1f))
+            // Bookshelf: the book's bookmark.
+            if (viewModel.bookshelfCanBookmark()) {
+                val bookmark by viewModel.bookshelfBookmark.collectAsState()
+                val currentPage by viewModel.bookshelfCurrentPage.collectAsState()
+                org.zotero.android.bookshelf.BookshelfBookmarkActions(
+                    bookmark = bookmark,
+                    currentPage = currentPage,
+                    onToggle = viewModel::bookshelfToggleBookmark,
+                    onGoTo = viewModel::bookshelfGoToBookmark,
+                )
+            }
             TooltipBox(
                 positionProvider = rememberTooltipPositionProvider(
                     TooltipAnchorPosition.Below,

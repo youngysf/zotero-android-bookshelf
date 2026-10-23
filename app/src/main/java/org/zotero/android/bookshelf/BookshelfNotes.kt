@@ -46,11 +46,15 @@ data class BookshelfBookInfo(
     val collections: List<String>,
     val tags: List<String>,
     val notes: List<BookshelfNote>,
+    /** The book's bookmark, if it has one. */
+    val bookmark: BookshelfNote? = null,
 )
 
 private fun RItem.field(key: String): String = fields.firstOrNull { it.key == key }?.value ?: ""
 
 private fun RItem.isLive(): Boolean = !deleted && !trash
+
+private fun BookshelfNote.isBookmark() = BookshelfBookmark.isBookmark(type, comment)
 
 private fun noteOf(annotation: RItem): BookshelfNote? {
     val attachment = annotation.parent ?: return null
@@ -89,8 +93,8 @@ private class ReadLibraryNotesDbRequest(
             .equalTo("deleted", false)
             .findAll()
             .mapNotNull { noteOf(it) }
-            // Only highlights, underlines and notes with words in them.
-            .filter { it.text.isNotBlank() || it.comment.isNotBlank() }
+            // Only highlights, underlines and notes with words in them (not the bookmark).
+            .filter { (it.text.isNotBlank() || it.comment.isNotBlank()) && !it.isBookmark() }
     }
 }
 
@@ -104,10 +108,12 @@ private class ReadBookInfoDbRequest(
         val book = database.where<RItem>().key(key, libraryId).findFirst()
             ?: return BookshelfBookInfo(key, "", "", "", "", "", emptyList(), emptyList(), emptyList())
         val attachments = if (book.rawType == ItemTypes.attachment) listOf(book) else book.children?.filter { it.rawType == ItemTypes.attachment && it.isLive() } ?: emptyList()
-        val notes = attachments.flatMap { attachment ->
+        val all = attachments.flatMap { attachment ->
             attachment.children?.filter { it.rawType == ItemTypes.annotation && !it.deleted }?.mapNotNull { noteOf(it) } ?: emptyList()
         }
-            .filter { it.text.isNotBlank() || it.comment.isNotBlank() }
+        val bookmark = all.filter { it.isBookmark() }.maxByOrNull { it.dateModified }
+        val notes = all
+            .filter { (it.text.isNotBlank() || it.comment.isNotBlank()) && !it.isBookmark() }
             .sortedWith(compareBy({ it.attachmentKey }, { it.sortIndex }))
         val authors = book.creators
             ?.sortedBy { it.orderId }
@@ -127,6 +133,7 @@ private class ReadBookInfoDbRequest(
             collections = book.collections?.filter { !it.deleted }?.map { it.name } ?: emptyList(),
             tags = book.tags?.mapNotNull { it.tag?.name }?.filter { Shelf.ofTag(it) == null } ?: emptyList(),
             notes = notes,
+            bookmark = bookmark,
         )
     }
 }

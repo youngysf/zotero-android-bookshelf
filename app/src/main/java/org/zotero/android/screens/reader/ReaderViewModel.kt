@@ -1281,7 +1281,7 @@ class ReaderViewModel @Inject constructor(
         val jsons = JsonArray()
         for (item in items) {
             val (annotation, json) = generateAnnotationJsonForReader(item) ?: continue
-            jsons.add(json)
+            if (!bookshelfIsBookmark(annotation)) jsons.add(json)
             sortedKeys.add(annotation.key)
             annotations[item.key] = annotation
         }
@@ -1363,7 +1363,7 @@ class ReaderViewModel @Inject constructor(
             annotations[key] = annotation
             val isOwnEditEcho = ignoreDbCallbackOnReaderModificationItemKeys.remove(key)
             val isSyncResponseVersionBump = item.changeType == UpdatableChangeType.syncResponse.name
-            if (!isOwnEditEcho && !isSyncResponseVersionBump) {
+            if (!isOwnEditEcho && !isSyncResponseVersionBump && !bookshelfIsBookmark(annotation)) {
                 updatedPdfAnnotations.add(json)
             }
 
@@ -1470,7 +1470,7 @@ class ReaderViewModel @Inject constructor(
                 }
 
                 UpdatableChangeType.sync.name, UpdatableChangeType.syncResponse.name -> {
-                    insertedPdfAnnotations.add(json)
+                    if (!bookshelfIsBookmark(annotation)) insertedPdfAnnotations.add(json)
                     Timber.i("ReaderViewModel: insert annotation")
                 }
             }
@@ -1481,6 +1481,7 @@ class ReaderViewModel @Inject constructor(
 
         this.annotations = annotations
         this.comments = comments
+        bookshelfRefreshBookmark()
 
         updateState {
             if (this@ReaderViewModel.snapshotKeys == null) {
@@ -1503,7 +1504,16 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             if (isInitial) {
                 val rawPage = loadRawPage()
-                val (type, page) = loadTypeAndPage(rawPage = rawPage)
+                val (type, savedPage) = loadTypeAndPage(rawPage = rawPage)
+                // Bookshelf: "Open at bookmark" passes the bookmark as the target.
+                val bookshelfTarget = viewState.selectedAnnotationKey
+                    ?: org.zotero.android.bookshelf.BookshelfReaderTarget.take(this@ReaderViewModel.key)
+                val bookshelfTargetBookmark = bookshelfTarget?.let { annotation(it) }?.takeIf { bookshelfIsBookmark(it) }
+                val page = if (bookshelfTargetBookmark != null) {
+                    ReaderPage.pdf(pageIndex = bookshelfPageOf(bookshelfTargetBookmark))
+                } else {
+                    savedPage
+                }
                 val (sortedKeys, annotations, json) = generateReaderInitJsonFromInitialAnnotations(
                     items = objects
                 )
@@ -1512,8 +1522,7 @@ class ReaderViewModel @Inject constructor(
                     file = this@ReaderViewModel.documentFile,
                     annotationsJson = json,
                     page = page,
-                    selectedAnnotationKey = viewState.selectedAnnotationKey
-                        ?: org.zotero.android.bookshelf.BookshelfReaderTarget.take(this@ReaderViewModel.key)
+                    selectedAnnotationKey = if (bookshelfTargetBookmark != null) null else bookshelfTarget
                 )
                 readerWebCallChainExecutor.loadDocument(
                     data = documentData,
@@ -1702,6 +1711,7 @@ class ReaderViewModel @Inject constructor(
                 }
                 readerWebCallChainExecutor.updateInterface(pdfReaderCurrentThemeEventStream.currentValue()!!.isDark)
                 readerWebCallChainExecutor.applyBookshelfPageTheme() // Bookshelf
+                readerWebCallChainExecutor.showBookshelfBookmark(bookshelfBookmark.value?.pageIndex)
                 bookshelfScheduleAutoHide()
                 bookshelfLoadTint()
             }
@@ -1785,6 +1795,8 @@ class ReaderViewModel @Inject constructor(
         val pageLabel = stats?.stringOrNull("pageLabel")
         val usePhysicalPageNumbers = stats?.boolOrNull("usePhysicalPageNumbers") ?: false
         bookshelfOnStats(pageIndex, pagesCount)
+        bookshelfCurrentPageLabel = pageLabel ?: ""
+        if (viewState.fileType == ReaderFileType.PDF && pageIndex != null) bookshelfCurrentPage.value = pageIndex
         val canNavigateBack = stats?.boolOrNull("canNavigateBack") ?: false
         val canNavigateForward = stats?.boolOrNull("canNavigateForward") ?: false
 
@@ -1984,10 +1996,12 @@ class ReaderViewModel @Inject constructor(
     }
 
     private fun bookshelfDisplayedKeys(): List<String> {
+        // The bookmark is shown as a ribbon, not in the list.
+        val keys = viewState.sortedKeys.filter { !bookshelfIsBookmark(annotation(it)) }
         if (!viewState.readingModeEnabled) {
-            return viewState.sortedKeys
+            return keys
         }
-        return viewState.sortedKeys.filter { key ->
+        return keys.filter { key ->
             when (annotation(key)?.type) {
                 AnnotationType.highlight, AnnotationType.underline, AnnotationType.note -> true
                 else -> false
@@ -2276,6 +2290,121 @@ class ReaderViewModel @Inject constructor(
                 }
                 return@launch
             }
+        }
+    }
+
+    // Bookshelf: the book's one bookmark. Placing it on another page moves it.
+    val bookshelfBookmark = MutableStateFlow<org.zotero.android.bookshelf.BookshelfBookmarkState?>(null)
+    val bookshelfCurrentPage = MutableStateFlow<Int?>(null)
+    private var bookshelfCurrentPageLabel: String = ""
+    // Waiting on the database: a bookmark just placed, and ones just taken out.
+    private var bookshelfPendingBookmarkKey: String? = null
+    private val bookshelfRemovedBookmarkKeys = mutableSetOf<String>()
+
+    private fun bookshelfIsBookmark(annotation: ReaderAnnotation?): Boolean =
+        annotation != null && org.zotero.android.bookshelf.BookshelfBookmark.isBookmark(annotation.type.name, annotation.comment)
+
+    private fun bookshelfPageOf(annotation: ReaderAnnotation): Int =
+        annotation.sortIndex.substringBefore('|').toIntOrNull()
+            ?: (annotation as? org.zotero.android.pdf.data.PDFDocumentAnnotation)?.page
+            ?: 0
+
+    private fun bookshelfBookmarks(): List<ReaderAnnotation> =
+        this.annotations.values.filterNotNull()
+            .filter { bookshelfIsBookmark(it) && it.key !in bookshelfRemovedBookmarkKeys }
+            .sortedByDescending { it.dateModified.time }
+
+    fun bookshelfCanBookmark(): Boolean =
+        viewState.fileType == ReaderFileType.PDF && this.library.metadataEditable
+
+    private fun bookshelfRefreshBookmark() {
+        if (viewState.fileType != ReaderFileType.PDF) return
+        val pending = bookshelfPendingBookmarkKey
+        if (pending != null) {
+            if (this.annotations[pending] == null) return
+            bookshelfPendingBookmarkKey = null
+        }
+        val marks = bookshelfBookmarks()
+        val newest = marks.firstOrNull()
+        val state = newest?.let {
+            org.zotero.android.bookshelf.BookshelfBookmarkState(it.key, bookshelfPageOf(it), it.pageLabel)
+        }
+        if (bookshelfBookmark.value != state) {
+            bookshelfBookmark.value = state
+            viewModelScope.launch { readerWebCallChainExecutor.showBookshelfBookmark(state?.pageIndex) }
+        }
+        // Two devices may each have placed one while offline: the newest stays.
+        if (marks.size > 1 && this.library.metadataEditable) {
+            bookshelfRemoveBookmarkItems(marks.drop(1).map { it.key })
+        }
+    }
+
+    /** The ribbon button: bookmark this page, or take the bookmark out if it's already here. */
+    fun bookshelfToggleBookmark() {
+        if (!bookshelfCanBookmark()) return
+        val page = bookshelfCurrentPage.value ?: return
+        if (bookshelfBookmark.value?.pageIndex == page) {
+            bookshelfRemoveBookmark()
+        } else {
+            bookshelfPlaceBookmark(page)
+        }
+    }
+
+    fun bookshelfRemoveBookmark() {
+        val keys = bookshelfBookmarks().map { it.key }
+        bookshelfBookmark.value = null
+        viewModelScope.launch { readerWebCallChainExecutor.showBookshelfBookmark(null) }
+        bookshelfRemoveBookmarkItems(keys)
+    }
+
+    private fun bookshelfRemoveBookmarkItems(keys: List<String>) {
+        if (keys.isEmpty()) return
+        bookshelfRemovedBookmarkKeys.addAll(keys)
+        remove(keys)
+    }
+
+    private fun bookshelfPlaceBookmark(page: Int) {
+        val old = bookshelfBookmarks().map { it.key }
+        val label = bookshelfCurrentPageLabel.ifBlank { (page + 1).toString() }
+        viewModelScope.launch {
+            val box = readerWebCallChainExecutor.bookshelfPageBox(page)
+            val json = org.zotero.android.bookshelf.BookshelfBookmark.json(
+                key = KeyGenerator.newKey(),
+                pageIndex = page,
+                pageLabel = label,
+                box = box,
+                dateIso = iso8601DateFormatV3.format(Date()),
+            )
+            val annotation = AnnotationConverterV2.annotation(data = json, author = this@ReaderViewModel.username, isAuthor = true)
+                ?: return@launch
+            bookshelfPendingBookmarkKey = annotation.key
+            bookshelfBookmark.value = org.zotero.android.bookshelf.BookshelfBookmarkState(annotation.key, page, label)
+            readerWebCallChainExecutor.showBookshelfBookmark(page)
+            try {
+                createPdfDatabaseAnnotations(annotations = listOf(annotation))
+            } catch (e: Exception) {
+                Timber.e(e, "Bookshelf: couldn't save the bookmark")
+                bookshelfPendingBookmarkKey = null
+                bookshelfRefreshBookmark()
+                return@launch
+            }
+            bookshelfRemoveBookmarkItems(old)
+        }
+    }
+
+    fun bookshelfGoToBookmark() {
+        val bookmark = bookshelfBookmark.value ?: return
+        viewModelScope.launch {
+            val box = readerWebCallChainExecutor.bookshelfPageBox(bookmark.pageIndex)
+            val top = box?.getOrNull(3) ?: 792.0
+            val left = box?.getOrNull(0) ?: 0.0
+            val location = mapOf(
+                "position" to mapOf(
+                    "pageIndex" to bookmark.pageIndex,
+                    "rects" to listOf(listOf(left, top - 1, left + 1, top)),
+                )
+            )
+            readerWebCallChainExecutor.show(location = location)
         }
     }
 

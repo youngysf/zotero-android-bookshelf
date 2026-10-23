@@ -348,6 +348,30 @@ private fun Cover(
         }
         DownloadBadge(state = state, modifier = Modifier.align(Alignment.BottomEnd))
         ProgressOverlay(progress = progress, finished = finished, modifier = Modifier.align(Alignment.BottomCenter))
+        if (data.snapshot.bookmarks.containsKey(cell.key)) {
+            CoverRibbon(modifier = Modifier.align(Alignment.TopEnd).padding(end = 10.dp))
+        }
+    }
+}
+
+/** A small ribbon over the top of the cover when the book has a bookmark in it. */
+@Composable
+private fun CoverRibbon(modifier: Modifier) {
+    val color = MaterialTheme.colorScheme.primary
+    androidx.compose.foundation.Canvas(
+        modifier = modifier
+            .width(11.dp)
+            .height(24.dp)
+            .shadow(elevation = 1.dp, shape = androidx.compose.foundation.shape.GenericShape { size, _ ->
+                moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width, size.height)
+                lineTo(size.width / 2f, size.height * 0.75f); lineTo(0f, size.height); close()
+            }),
+    ) {
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width, size.height)
+            lineTo(size.width / 2f, size.height * 0.75f); lineTo(0f, size.height); close()
+        }
+        drawPath(path, color)
     }
 }
 

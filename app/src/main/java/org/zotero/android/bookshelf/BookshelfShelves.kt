@@ -46,6 +46,8 @@ data class BookshelfSnapshot(
     val lastRead: Map<String, Long> = emptyMap(),
     /** Book key → when it was added (ms), for "Recently added". */
     val added: Map<String, Long> = emptyMap(),
+    /** Book key → the page label its bookmark is on. */
+    val bookmarks: Map<String, String> = emptyMap(),
 )
 
 private class ReadBookshelfSnapshotDbRequest(
@@ -81,7 +83,29 @@ private class ReadBookshelfSnapshotDbRequest(
             item.effectiveLastRead?.let { lastRead[item.key] = it.time }
             added[item.key] = item.dateAdded.time
         }
-        return BookshelfSnapshot(shelves, positions, lastRead, added)
+        val bookmarks = HashMap<String, String>()
+        val marks = database.where<RItem>()
+            .library(libraryId)
+            .and()
+            .equalTo("rawType", org.zotero.android.database.objects.ItemTypes.annotation)
+            .and()
+            .equalTo("deleted", false)
+            .and()
+            .equalTo("fields.value", BookshelfBookmark.COMMENT)
+            .findAll()
+        for (mark in marks) {
+            fun field(key: String) = mark.fields.firstOrNull { it.key == key }?.value
+            val annotationKeys = org.zotero.android.database.objects.FieldKeys.Item.Annotation
+            if (!BookshelfBookmark.isBookmark(field(annotationKeys.type), field(annotationKeys.comment))) continue
+            val attachment = mark.parent ?: continue
+            if (attachment.deleted || attachment.trash) continue
+            val book = attachment.parent ?: attachment
+            val label = field(annotationKeys.pageLabel).orEmpty()
+            bookmarks[book.key] = label
+            // Standalone PDFs and books are shown by either key in places.
+            bookmarks[attachment.key] = label
+        }
+        return BookshelfSnapshot(shelves, positions, lastRead, added, bookmarks)
     }
 }
 

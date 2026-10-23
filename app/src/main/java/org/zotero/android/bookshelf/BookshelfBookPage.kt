@@ -242,6 +242,31 @@ internal fun BookshelfBookPage(
                     )
                 }
 
+                // The bookmark: opens the book at the page it's on.
+                val bookmark = info?.bookmark
+                if (bookmark != null) {
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { onOpenNote(bookmark) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(23.dp),
+                    ) {
+                        Icon(
+                            painterResource(Drawables.bookshelf_ribbon_filled_24px),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Open at bookmark" + bookmark.pageLabel.takeIf { it.isNotBlank() }?.let { " · p. $it" }.orEmpty(),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     Shelf.entries.forEachIndexed { i, option ->

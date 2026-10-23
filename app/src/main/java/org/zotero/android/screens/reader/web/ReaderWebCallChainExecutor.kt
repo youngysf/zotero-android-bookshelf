@@ -38,6 +38,7 @@ class ReaderWebCallChainExecutor @Inject constructor(
     private val defaults: Defaults,
     private val bookshelfPreferences: org.zotero.android.bookshelf.BookshelfPreferences,
     private val bookshelfSelection: org.zotero.android.bookshelf.BookshelfSelection,
+    private val context: android.content.Context,
 ) {
 
     private val limitedParallelismDispatcher =
@@ -513,13 +514,39 @@ class ReaderWebCallChainExecutor @Inject constructor(
         // and Bookshelf's own PDF text selection is installed.
         val javascript = "javascript:createView('${toJson}');" +
             bookshelfPreferences.pageTheme.value.applyScript() +
-            bookshelfSelection.script
+            bookshelfSelection.script +
+            org.zotero.android.bookshelf.BookshelfBookmark.script(context)
         return suspendCancellableCoroutine { cont ->
             readerWebViewHandler.evaluateJavascript(javascript) {
                 cont.resume(Unit)
             }
         }
 
+    }
+
+    /** Bookshelf: shows the bookmark ribbon on a page (null takes it away). */
+    suspend fun showBookshelfBookmark(pageIndex: Int?) {
+        return suspendCancellableCoroutine { cont ->
+            readerWebViewHandler.evaluateJavascript(org.zotero.android.bookshelf.BookshelfBookmark.showScript(pageIndex)) {
+                cont.resume(Unit)
+            }
+        }
+    }
+
+    /** Bookshelf: a page's box in PDF points ([x0, y0, x1, y1]), or null if the page isn't ready. */
+    suspend fun bookshelfPageBox(pageIndex: Int): List<Double>? {
+        val raw = suspendCancellableCoroutine<String?> { cont ->
+            readerWebViewHandler.evaluateJavascript(org.zotero.android.bookshelf.BookshelfBookmark.pageBoxScript(pageIndex)) {
+                cont.resume(it)
+            }
+        }
+        return try {
+            val inner = gson.fromJson(raw, String::class.java) ?: return null
+            val box = gson.fromJson(inner, DoubleArray::class.java)?.toList()
+            box?.takeIf { it.size == 4 && it[2] > it[0] && it[3] > it[1] }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /** Bookshelf: apply the chosen page colour without touching the interface colours. */
