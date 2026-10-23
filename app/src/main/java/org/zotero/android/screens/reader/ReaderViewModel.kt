@@ -2395,16 +2395,7 @@ class ReaderViewModel @Inject constructor(
     fun bookshelfGoToBookmark() {
         val bookmark = bookshelfBookmark.value ?: return
         viewModelScope.launch {
-            val box = readerWebCallChainExecutor.bookshelfPageBox(bookmark.pageIndex)
-            val top = box?.getOrNull(3) ?: 792.0
-            val left = box?.getOrNull(0) ?: 0.0
-            val location = mapOf(
-                "position" to mapOf(
-                    "pageIndex" to bookmark.pageIndex,
-                    "rects" to listOf(listOf(left, top - 1, left + 1, top)),
-                )
-            )
-            readerWebCallChainExecutor.show(location = location)
+            readerWebCallChainExecutor.show(location = mapOf("pageIndex" to bookmark.pageIndex))
         }
     }
 
